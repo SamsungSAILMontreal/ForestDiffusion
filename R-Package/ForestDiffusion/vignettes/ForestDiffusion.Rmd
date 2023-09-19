@@ -1,0 +1,181 @@
+---
+title: "How to use Diffusion Forests to generate and impute missing data (from basic to advanced usage)"
+author: "Alexia Jolicoeur-Martineau"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{Latent Environmental & Genetic InTeraction (LEGIT) modelling}
+  %\VignetteEncoding{UTF-8}
+---
+
+You can cite this work as: **
+
+*Jolicoeur-Martineau, A., Wazana, A., Szekely, E., Steiner, M., Fleming, A. S., Kennedy, J. L., Meaney M. J. & Greenwood, C.M. (2017). Alternating optimization for GxE modelling with weighted genetic and environmental scores: examples from the MAVAN study. arXiv preprint arXiv:1703.08111.*
+
+## Score-based diffusion and flow-based models (high-level idea)
+
+You can refer to the paper if you want to know more about the mathematics and the algorithm. In this vignette, I will stay at a high level. 
+
+The idea behind score-based diffusion models is that we can define a forward process that adds increasing amounts of Gaussian noise over time to slowly move from a real data sample (at $t=0$) to pure Gaussian noise (at $t=1$). The magic is that it can be shown that this process is reversible, which means that we can go in reverse from pure noise ($t=1$) to real data ($t=0$) and thus generate new data samples from pure noise. To reverse the process, we need to learn the score-function (gradient log density) with a function approximator (XGBoost is used in this case). 
+
+Alternatively, flow-based models define a deterministic forward process moving from real data to pure Gaussian noise. Then, they learn the gradient flow, which can be used to move in reverse (from noise to data). 
+
+Both diffusion (stochastic SDE-based) and flow (deterministic ODE-based) methods are available in this package. To my knowledge, this is the first R package implementing diffusion and flow models.
+
+It is recommended to have a decent amount of CPU cores. The default $n_t=50$ with 5 CPU cores will take 10 passes; with 10 CPU cores, it will take 5 passes; with 50 CPU cores, it will take 1 pass. Thus, the more CPUs you have, the faster it will be.
+
+On the other hand, memory can be a problem, especially if you have a lot of CPUs; please see the section further down on how to deal with this problem if you ever have out-of-memory errors.
+
+## Generating data
+
+Let's use the Iris dataset as an example. Since it performs better, we will use the flow method to generate fake samples. Note that the dataset can contain missing values since XGBoost can handle NAs, yet the generated data will never have missing values (isn't it great?).
+
+```{r}
+library(ForestDiffusion)
+
+# Load iris
+data(iris)
+# variables 1 to 4 are the input X
+# variable 5 (iris$Species) is the outcome (class with 3 labels)
+
+# Add NAs (but not to label) to emulate having a dataset with missing values
+iris[,1:4] = missForest::prodNA(iris[,1:4], noNA = 0.2)
+
+# Setup data
+X = data.frame(iris[,1:4])
+y = iris$Species
+Xy = iris
+plot(Xy)
+
+# When you do not want to train a seperate model per model (or you have a regression problem), you can provide the dataset together
+forest_model_uncond = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE)
+Xy_fake = ForestDiffusion.generate(forest_model_uncond, batch_size=NROW(Xy))
+plot(Xy_fake)
+
+# When the outcome y is categorical, you can provide it seperately to construct a seperate model per label (this can improve performance, but it will be slower)
+forest_model = ForestDiffusion(X, label_y=y, name_y='Species', n_t=50, duplicate_K=50, flow=TRUE)
+Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
+plot(Xy_fake)
+
+```
+
+Now that you have your fake data, you can use it in your own models directly or combine it with the real data.
+
+```{r}
+# Use the real data to fit a GLM
+fit = glm(Species ~ Sepal.Length, family = 'binomial', data=Xy)
+summary(fit)
+
+# Use fake data to fit a GLM
+fit = glm(Species ~ Sepal.Length, family = 'binomial', data=Xy_fake)
+summary(fit)
+
+# Use data augmentation (equal real with equal fake data) to fit a GLM
+X_combined = data.frame(rbind(Xy, Xy_fake))
+fit = glm(Species ~ Sepal.Length, family = 'binomial', data=X_combined)
+summary(fit)
+```
+
+## Data augmentation to further improve on missForest (or any other method)
+
+In our paper, we show that data-augmentation (one part real, five part fake) improves the performance of missForest and miceRanger, so you can use it to improve various methods. Here is an example of data augmentation with missForest.
+
+```{r}
+library(missForest)
+
+# Normally, you would use missForest as follows
+missForest::missForest(Xy, verbose = TRUE)
+
+# Instead, you can now use data augmentation
+Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy)) # generates as much fake as real data
+X_combined = data.frame(rbind(Xy, Xy_fake)) # combine real and fake data
+missForest(X_combined, verbose = TRUE) # train missForest with augmented data for higher imputation performance
+
+```
+
+## Accounting for uncertainty using multiple fake datasets (akin to multiple imputations)
+
+Training a single model with fake or data-augmented data is cool, but it might not account for uncertainty since you trained a single model. When imputing data, we generally want to use multiple imputed datasets, train our model on each imputed dataset, and then pool the results in order to account for the different possible imputations. We can apply the same idea here but with fake data! Let me show you how.
+
+```{r}
+library(mice)
+
+# Generate fake data
+ngen = 9 # number of generated datasets we want
+Xy_fake = ForestDiffusion.generate(forest_model, batch_size=ngen*NROW(Xy))
+
+# Make a list of fake datasets
+data_list = split(Xy_fake, rep(1:ngen, each=NROW(Xy)))
+
+# Fit a model per fake dataset
+fits <- with_datasets(data_list, glm(Species ~ Sepal.Length, family = 'binomial'))
+
+# Pool the results
+mice::pool(fits) 
+
+```
+
+## Multiple imputation
+
+Below, we show how to impute missing data using ForestDiffusion. Note that if you have a preferred method of imputation, you can also do data augmentation with ForestDiffusion to potentially improve the performance of your preferred method (see the example with missForest above).
+
+```{r}
+library(mice)
+
+# Must train a VP diffusion model (instead of a Flow model) to be able to impute data
+forest_model_vp = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE)
+nimp = 5 # number of imputations needed
+Xy_imp = ForestDiffusion.impute(forest_model_vp, k=nimp) # regular imputations (fast)
+Xy_imp = ForestDiffusion.impute(forest_model_vp, repaint=TRUE, r=10, j=5, k=nimp) # REPAINT imputations (slow, but better)
+plot(Xy_imp[[1]]) # plot first imputed dataset
+```
+
+Now that you have created multiple imputations, you can use fit one model per imputation and pool the results.
+
+```
+# Fit a model per imputed dataset
+fits <- with_datasets(Xy_imp, glm(Species ~ Sepal.Length, family = 'binomial'))
+
+# Pool the results
+mice::pool(fits) 
+
+```
+
+## Hyperparameters
+
+We list the important hyperparameters below, their default values, and how to tune them:
+
+```
+label_y = None # provide the outcome variable if it is categorical for improved performance by training separate models per class (training will be slower); cannot contain missing values
+name_y = 'y' # Name of label_y variable if provided
+n_t = 50 # number of noise levels (and sampling steps); increase for higher performance, but slows down training and sampling
+flow = TRUE # type of process (flow = ODE, vp = SDE); vp generally has slightly worse performance, but it is the only method that can be used for imputation
+duplicate_K = 100 # number of noise per sample (or equivalently the number of times the rows of the dataset are duplicated); should be high, but performance caps at some point; higher values increase the memory demand
+seed = 666 # random seed value
+max_depth = 7 # max depth of the tree
+n_estimators = 100 # number of trees per XGBoost model
+```
+
+Regarding the imputation with REPAINT, there are two important hyperparameters:
+```
+r = 10 # number of repaints, 5 or 10 is good
+j = 0.1 # percentage of the jump size; should be around 10% of n_t
+```
+
+## Potential memory problems and solutions 😭
+
+Our method trains p\*n_t models in parallel using CPUs, where p is the number of variables and n_t is the number of noise levels. Furthermore, we make the dataset much bigger by duplicating the rows many times (100 times is the default).
+
+To speed up the training, you will need as many CPUs as possible. Training the multiple models using only 4 CPUs could take a long time. However, the more CPUs you use, the higher the memory cost will be! This is because each worker/CPU will train its own model, which will require its own amount of memory (RAM). So, there is a balance to be reached between enough CPUs for speed but not too much so that it doesn't blow up the memory.
+
+We provide below some hyperparameters that can be changed to reduce the memory load:
+```
+max_n_cpus = NULL # this will limit the maximum number of CPUs and thus the memory
+duplicate_K = 100 # lowering this value will reduce memory demand and possibly performance (memory is proportional to this value)
+n_t = 50 # reducing this value could reduce memory demand and performance (stay at n_t=50 or higher)
+label_y = None # using None will reduce memory demand (since using this will train n_classes times more models)
+max_depth = 7 # reducing the depth of trees will reduce memory demand
+n_estimators = 100 # reducing the number of trees will reduce memory demand
+```
+

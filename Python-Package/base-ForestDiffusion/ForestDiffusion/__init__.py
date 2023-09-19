@@ -1,0 +1,1 @@
+from ForestDiffusion.diffusion_with_trees_class import ForestDiffusionModel
