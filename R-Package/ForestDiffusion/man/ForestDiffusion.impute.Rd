@@ -52,7 +52,7 @@ Impute missing data by solving the reverse SDE while keeping the non-missing dat
  nimp = 5 # number of imputations needed
  Xy = X
  Xy$y = y
- forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE)
+ forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
  # regular (fast)
  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
  # REPAINT (slow, but better)

@@ -29,7 +29,7 @@ Generate new observations by solving the reverse SDE (vp) / ODE (flow) starting 
  
  Xy = X
  Xy$y = y
- forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE)
+ forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy))
 }  
 

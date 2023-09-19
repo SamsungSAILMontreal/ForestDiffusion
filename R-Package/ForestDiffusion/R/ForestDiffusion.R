@@ -72,20 +72,20 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #'  ## Generation
 #'  
 #'  # Classification problem (outcome is categorical)
-#'  forest_model = ForestDiffusion(X, label_y=y, n_t=50, duplicate_K=50, flow=TRUE)
+#'  forest_model = ForestDiffusion(X, label_y=y, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
 #'  # last variable will be the label_y
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(iris))
 #'  
 #'  # When you do not want to train a seperate model per model (or you have a regression problem)
 #'  Xy = X
 #'  Xy$y = y
-#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE)
+#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(iris))
 #'  
 #'  ## Imputation
 #'  
 #'  # flow=True generate better data but it cannot impute data
-#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE)
+#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
 #'  nimp = 5 # number of imputations needed
 #'  # regular (fast)
 #'  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
@@ -517,7 +517,7 @@ euler_solve = function(y0, my_model, N=101){
 #'  
 #'  Xy = X
 #'  Xy$y = y
-#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE)
+#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy))
 #' }  
 #'
@@ -593,7 +593,7 @@ ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL){
 #'  nimp = 5 # number of imputations needed
 #'  Xy = X
 #'  Xy$y = y
-#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE)
+#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
 #'  # regular (fast)
 #'  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
 #'  # REPAINT (slow, but better)
@@ -681,7 +681,7 @@ ForestDiffusion.impute = function(object, k=1, X=NULL, label_y=NULL, repaint=FAL
 #' # add missing data
 #' Xy = missForest::prodNA(Xy, noNA = 0.2)
 #' 
-#' forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE)
+#' forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
 #' nimp = 5 # number of imputations needed
 #' # regular (fast)
 #' Xy_imp = ForestDiffusion.impute(forest_model, k=nimp)

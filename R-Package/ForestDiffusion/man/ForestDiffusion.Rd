@@ -69,20 +69,20 @@ Train XGBoost regression models to estimate the score-function (for diffusion mo
  ## Generation
  
  # Classification problem (outcome is categorical)
- forest_model = ForestDiffusion(X, label_y=y, n_t=50, duplicate_K=50, flow=TRUE)
+ forest_model = ForestDiffusion(X, label_y=y, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
  # last variable will be the label_y
  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(iris))
  
  # When you do not want to train a seperate model per model (or you have a regression problem)
  Xy = X
  Xy$y = y
- forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE)
+ forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(iris))
  
  ## Imputation
  
  # flow=True generate better data but it cannot impute data
- forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE)
+ forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
  nimp = 5 # number of imputations needed
  # regular (fast)
  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)

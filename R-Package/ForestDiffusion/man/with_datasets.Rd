@@ -30,7 +30,7 @@ Xy$y = iris[,5]
 # add missing data
 Xy = missForest::prodNA(Xy, noNA = 0.2)
 
-forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE)
+forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
 nimp = 5 # number of imputations needed
 # regular (fast)
 Xy_imp = ForestDiffusion.impute(forest_model, k=nimp)
