@@ -61,5 +61,11 @@ Impute missing data by solving the reverse SDE while keeping the non-missing dat
  
 }
 \references{
-TO ADD mine + REPAINT
+Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
+Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
+arXiv:2309.09968.
+
+Andreas Lugmayr, Martin Danelljan, Andres Romero, Fisher Yu, Radu Timofte, Luc Van Gool. 
+RePaint: Inpainting using Denoising Diffusion Probabilistic Models. 
+arXiv:2201.09865.
 }

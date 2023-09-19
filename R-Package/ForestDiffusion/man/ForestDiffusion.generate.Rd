@@ -35,5 +35,7 @@ Generate new observations by solving the reverse SDE (vp) / ODE (flow) starting 
 
 }
 \references{
-TO ADD mine + REPAINT
+Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
+Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
+arXiv:2309.09968.
 }

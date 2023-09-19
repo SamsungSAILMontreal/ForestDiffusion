@@ -96,7 +96,10 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #' @import xgboost foreach parallel doParallel future
 #' @importFrom caret dummyVars
 #' @importFrom stats predict
-#' @references TO ADD 
+#' @references
+#' Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
+#' Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
+#' arXiv:2309.09968.
 #' @export
 ForestDiffusion = function(X, 
                label_y=NULL, # must be a categorical/binary variable; if provided will learn multiple models for each label y
@@ -518,7 +521,10 @@ euler_solve = function(y0, my_model, N=101){
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy))
 #' }  
 #'
-#' @references TO ADD mine + REPAINT
+#' @references 
+#' Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
+#' Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
+#' arXiv:2309.09968.
 #' @export
 
 ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL){
@@ -594,7 +600,14 @@ ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL){
 #'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=True, r=10, j=5, k=nimp)
 #' }
 #'  
-#' @references TO ADD mine + REPAINT
+#' @references
+#' Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
+#' Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
+#' arXiv:2309.09968.
+#' 
+#' Andreas Lugmayr, Martin Danelljan, Andres Romero, Fisher Yu, Radu Timofte, Luc Van Gool. 
+#' RePaint: Inpainting using Denoising Diffusion Probabilistic Models. 
+#' arXiv:2201.09865.
 #' @export
 
 ForestDiffusion.impute = function(object, k=1, X=NULL, label_y=NULL, repaint=FALSE, r=5, j=0.1, n_t=NULL){ # X is data with missing values

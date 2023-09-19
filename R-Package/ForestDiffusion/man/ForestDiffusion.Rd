@@ -39,7 +39,7 @@ ForestDiffusion(
 
 \item{eta}{learning rate per XGBoost model}
 
-\item{duplicate_K}{number of noise per sample (or equivalently the number of times the rows of the dataset are duplicated); should be high, but performance caps at some point; higher values increase the memory demand}
+\item{duplicate_K}{number of noise per sample (or equivalently the number of times the rows of the dataset are duplicated); should be as high as possible; higher values increase the memory demand}
 
 \item{true_min_max_values}{(optional) list of form [[min_x, min_y], [max_x, max_y]]; If  provided, we use these values as the min/max for each variables when using clipping}
 
@@ -92,5 +92,7 @@ Train XGBoost regression models to estimate the score-function (for diffusion mo
  
 }
 \references{
-TO ADD
+Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
+Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
+arXiv:2309.09968.
 }

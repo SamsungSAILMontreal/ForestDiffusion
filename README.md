@@ -112,9 +112,10 @@ Our method trains p\*n_t models in parallel using CPUs, where p is the number of
 
 To speed up the training, you will need as many CPUs as possible. Training the multiple models using only 4 CPUs could take a long time. However, the more CPUs you use, the higher the memory cost will be! This is because each worker/CPU will train its own model, which will require its own amount of memory (RAM). So, there is a balance to be reached between enough CPUs for speed but not too much so that it doesn't blow up the memory.
 
-If you use clusters, you can control the amount of CPUs and RAM you take. But regular users might not be able to do this. However, there are ways to force Python to only use a subset of the CPUs (to be determined). We provide below some hyperparameters that can be changed to reduce the memory load:
+If you use clusters, you can control the amount of CPUs and RAM you take. There are also ways to force Python to only use a subset of the CPUs (using the n_jobs parameters). We provide below some hyperparameters that can be changed to reduce the memory load:
 ```
 duplicate_K = 100 # lowering this value will reduce memory demand and possibly performance (memory is proportional to this value)
+n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 will reduce training speed, but reduce memory load)
 n_t = 50 # reducing this value will likely reduce memory demand and possibly performance (stay at n_t=50 or higher)
 y_label = None # using None will reduce memory demand (since using this will train n_classes times more models)
 max_depth = 7 # reducing the depth of trees will reduce memory demand
