@@ -64,12 +64,12 @@ Examples to generate new samples given your dataset (can contain missing values)
 
 ```
 # Classification problem (outcome is categorical)
-forest_model = ForestDiffusion(X, y_label=y, n_t=50, duplicate_K=100, bin_indexes=[3], cat_indexes=[0,5], int_indexes=[1,2], diffusion_type='flow')
+forest_model = ForestDiffusion(X, y_label=y, n_t=50, duplicate_K=100, bin_indexes=[3], cat_indexes=[0,5], int_indexes=[1,2], diffusion_type='flow', n_jobs=-1)
 Xy_fake = forest_model.generate(batch_size=X.shape[0]) # last variable will be the y_label
 
 # Regression problem (outcome is continuous)
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
-forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=100, bin_indexes=[2], cat_indexes=[0,1], int_indexes=[], diffusion_type='flow')
+forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=100, bin_indexes=[2], cat_indexes=[0,1], int_indexes=[], diffusion_type='flow', n_jobs=-1)
 Xy_fake = forest_model.generate(batch_size=X.shape[0])
 ```
 
@@ -78,7 +78,7 @@ Examples to impute your dataset:
 ```
 nimp = 5 # number of imputations needed
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
-forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=100, bin_indexes=[4], cat_indexes=[1,2], int_indexes=[0], diffusion_type='vp')
+forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=100, bin_indexes=[4], cat_indexes=[1,2], int_indexes=[0], diffusion_type='vp', n_jobs=-1)
 Xy_fake = forest_model.impute(k=nimp) # regular (fast)
 Xy_fake = forest_model.impute(repaint=True, r=10, j=5, k=nimp) # REPAINT (slow, but better)
 ```
@@ -88,6 +88,7 @@ Xy_fake = forest_model.impute(repaint=True, r=10, j=5, k=nimp) # REPAINT (slow, 
 We list the important hyperparameters below, their default values, and how to tune them:
 
 ```
+n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 will reduce training speed, but reduce memory load)
 y_label = None # provide the outcome variable if it is categorical for improved performance by training separate models per class; cannot contain missing values
 bin_indexes = [] # vector that indicates which column is binary
 cat_indexes = [] # vector that indicates which column is categorical (>=3 categories)

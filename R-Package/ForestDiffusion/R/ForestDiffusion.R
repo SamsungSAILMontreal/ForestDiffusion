@@ -47,6 +47,7 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #' @title Diffusion and Flow-based XGBoost Model for generating or imputing data
 #' @description Train XGBoost regression models to estimate the score-function (for diffusion models) or the flow (flow-based models). These models can then be used to generate new fake samples or impute missing values.
 #' @param X data.frame of the dataset to be used. 
+#' @param n_cores number of cpu cores used (if NULL, it will use all cores, otherwise it will use min(n_cores, max_available_cores); using more cores makes training faster, but increases the memory cost (so reduce it if you have memory problems)
 #' @param label_y optional vector containing the outcome variable if it is categorical for improved performance by training separate models per class; cannot contain missing values
 #' @param name_y name of label_y
 #' @param n_t number of noise levels (and sampling steps); increase for higher performance, but slows down training and sampling
@@ -59,7 +60,6 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #' @param eps minimum noise level
 #' @param beta_min value of the beta_min in the vp process
 #' @param beta_max value of the beta_max in the vp process
-#' @param max_n_cpus (optional) limit the number of cpus used
 #' @param seed (optional) random seed used
 #' @return Returns an object of the class "ForestDiffusion" which is list containing the XGBoost model fits
 #' @examples
@@ -72,20 +72,20 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #'  ## Generation
 #'  
 #'  # Classification problem (outcome is categorical)
-#'  forest_model = ForestDiffusion(X, label_y=y, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
+#'  forest_model = ForestDiffusion(X=X, n_cores=1, label_y=y, n_t=50, duplicate_K=50, flow=TRUE)
 #'  # last variable will be the label_y
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(iris))
 #'  
 #'  # When you do not want to train a seperate model per model (or you have a regression problem)
 #'  Xy = X
 #'  Xy$y = y
-#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
+#'  forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=TRUE)
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(iris))
 #'  
 #'  ## Imputation
 #'  
 #'  # flow=True generate better data but it cannot impute data
-#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
+#'  forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=FALSE)
 #'  nimp = 5 # number of imputations needed
 #'  # regular (fast)
 #'  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
@@ -93,7 +93,7 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=True, r=10, j=5, k=nimp)
 #'}
 #'  
-#' @import xgboost foreach parallel doParallel future
+#' @import xgboost foreach parallel doParallel parallelly
 #' @importFrom caret dummyVars
 #' @importFrom stats predict
 #' @references
@@ -102,6 +102,7 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #' arXiv:2309.09968.
 #' @export
 ForestDiffusion = function(X, 
+               n_cores,
                label_y=NULL, # must be a categorical/binary variable; if provided will learn multiple models for each label y
                name_y = 'y',
                n_t=50,
@@ -112,7 +113,6 @@ ForestDiffusion = function(X,
                eps = 1e-3, 
                beta_min=0.1, 
                beta_max=8, 
-               max_n_cpus=NULL, # number of cpus you are using
                seed=NULL){
 
   if (!is.null(seed)) set.seed(seed)
@@ -238,30 +238,62 @@ ForestDiffusion = function(X,
   # Fit model(s)
   n_steps = n_t
   n_y = length(y_uniques) # for each class train a seperate model
-  if (is.null(max_n_cpus)){
-    n_cpus = parallel::detectCores()-1
+  if (is.null(n_cores)){
+    n_cores = parallelly::availableCores(omit = 1)
     } else{
-      n_cpus = max(max_n_cpus, parallel::detectCores()-1)
+      n_cores = min(n_cores, parallelly::availableCores(omit = 1))
     }
-  cl = future::makeClusterPSOCK(n_cpus, autoStop = TRUE)
-  doParallel::registerDoParallel(cl)
-  k = NULL
-  regr = foreach::foreach(i = 1:n_steps) %:% # using all cpus
-          foreach::foreach(j = 1:n_y) %:% 
-            foreach::foreach(k = 1:c) %dopar% {
-              # Training function
-              train_xgboost = function(X_train, y_train, params, n_estimators=100, seed=666){
-                # Remove observations with missing values in y
-                obs_to_remove = is.na(y_train)
-                X_train_ = X_train[!obs_to_remove,]
-                y_train_ = y_train[!obs_to_remove]
-                set.seed(seed)
-                out = xgboost::xgboost(as.matrix(X_train_), y_train_, params=params, nrounds=n_estimators, verbose=0)
-                return(out)
-              }
-              train_xgboost(X_train[[i]][mask_y[[j]], ], y_train[mask_y[[j]], k], params, n_estimators=n_estimators, seed=seed)
+  if (n_cores == 1){
+    regr = vector('list', n_steps)
+    for(i in 1:n_steps){
+      regr[[i]] = vector('list', n_y)
+      for(j in 1:n_y){
+        regr[[i]][[j]] = vector('list', c)
+      } 
+    }
+    for(i in 1:n_steps){
+        for(j in 1:n_y){
+            for(k in 1:c){
+                # Training function
+                train_xgboost = function(X_train, y_train, params, n_estimators=100, seed=666){
+                  # Remove observations with missing values in y
+                  obs_to_remove = is.na(y_train)
+                  X_train_ = X_train[!obs_to_remove,]
+                  y_train_ = y_train[!obs_to_remove]
+                  set.seed(seed)
+                  out = xgboost::xgboost(as.matrix(X_train_), y_train_, params=params, nrounds=n_estimators, verbose=0)
+                  return(out)
+                }
+                regr[[i]][[j]][[k]] = train_xgboost(X_train[[i]][mask_y[[j]], ], y_train[mask_y[[j]], k], params, n_estimators=n_estimators, seed=seed)
+            }
           }
-  rm(cl)
+        }
+  } else{
+    cl = parallelly::makeClusterPSOCK(n_cores, autoStop = TRUE)
+    doParallel::registerDoParallel(cl)
+    k = NULL
+    regr = foreach::foreach(i = 1:n_steps) %:% # using all cpus
+            foreach::foreach(j = 1:n_y) %:% 
+              foreach::foreach(k = 1:c) %dopar% {
+                # Training function
+                train_xgboost = function(X_train, y_train, params, n_estimators=100, seed=666){
+                  # Remove observations with missing values in y
+                  obs_to_remove = is.na(y_train)
+                  X_train_ = X_train[!obs_to_remove,]
+                  y_train_ = y_train[!obs_to_remove]
+                  set.seed(seed)
+                  out = xgboost::xgboost(as.matrix(X_train_), y_train_, params=params, nrounds=n_estimators, verbose=0)
+                  return(out)
+                }
+                train_xgboost(X_train[[i]][mask_y[[j]], ], y_train[mask_y[[j]], k], params, n_estimators=n_estimators, seed=seed)
+            }
+    #parallel::stopCluster(cl)
+    #parallelly::killNode(cl)
+    doParallel::stopImplicitCluster()
+    parallelly::killNode(cl) # no other choice, it doesnt go away otherwise
+    rm(list = "cl")
+    gc()
+    }
   result = list(regr = regr, X_min = X_min, X_max = X_max, X_min_dummy = X_min_, X_max_dummy = X_max_, cat_indexes=cat_indexes, int_indexes=int_indexes, 
     c=c, b=b,
     beta_0=beta_min, beta_1=beta_max, eps=eps,
@@ -507,6 +539,7 @@ euler_solve = function(y0, my_model, N=101){
 #' @param batch_size (optional) number of observations generated; if not provided, will generate as many observations as the original dataset
 #' @param n_t (optional) number of noise levels (and sampling steps); increase for higher performance, but slows down training and sampling; if not provided, will use the same n_t as used in training.
 #' @return Returns a data.frame with the generated data
+#' @param seed (optional) random seed used
 #' @examples
 #'  \dontrun{
 #'  data(iris)
@@ -517,7 +550,7 @@ euler_solve = function(y0, my_model, N=101){
 #'  
 #'  Xy = X
 #'  Xy$y = y
-#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
+#'  forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=TRUE)
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy))
 #' }  
 #'
@@ -527,12 +560,9 @@ euler_solve = function(y0, my_model, N=101){
 #' arXiv:2309.09968.
 #' @export
 
-ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL){
+ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL, seed=NULL){
 
-  #object = fit_forest
-  #batch_size=NULL
-  #n_t = NULL
-
+  if (!is.null(seed)) set.seed(seed)
   if (is.null(batch_size)) batch_size = object$b
   if (is.null(n_t)) n_t = object$n_t
 
@@ -578,6 +608,7 @@ ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL){
 #' @param r number of repaints (default=10)
 #' @param j jump size in percentage (default: 10 percent of the samples), this is part of REPAINT
 #' @param n_t (optional) number of noise levels (and sampling steps); increase for higher performance, but slows down training and sampling; if not provided, will use the same n_t as used in training.
+#' @param seed (optional) random seed used
 #' @return Returns a data.frame with the generated data
 #' @examples
 #'  \dontrun{
@@ -593,7 +624,7 @@ ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL){
 #'  nimp = 5 # number of imputations needed
 #'  Xy = X
 #'  Xy$y = y
-#'  forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
+#'  forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=FALSE)
 #'  # regular (fast)
 #'  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
 #'  # REPAINT (slow, but better)
@@ -610,18 +641,11 @@ ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL){
 #' arXiv:2201.09865.
 #' @export
 
-ForestDiffusion.impute = function(object, k=1, X=NULL, label_y=NULL, repaint=FALSE, r=5, j=0.1, n_t=NULL){ # X is data with missing values
+ForestDiffusion.impute = function(object, k=1, X=NULL, label_y=NULL, repaint=FALSE, r=5, j=0.1, n_t=NULL, seed=NULL){ # X is data with missing values
   if (object$flow == 'flow') stop("Cannot use imputation with flow=TRUE, please retrain with flow=FALSE")
   if (sum(is.na(object$X1)>0) == 0) stop("Cannot imputate when data has no missing values")
 
-  #object = fit_forest
-  #k=1
-  #X=NULL
-  #label_y = NULL
-  #repaint = FALSE
-  #r=5
-  #j=0.1
-  #n_t=NULL
+  if (!is.null(seed)) set.seed(seed)
 
   if (is.null(X)) X = object$X1
   if (is.null(label_y)) label_y = object$label_y
@@ -681,7 +705,7 @@ ForestDiffusion.impute = function(object, k=1, X=NULL, label_y=NULL, repaint=FAL
 #' # add missing data
 #' Xy = missForest::prodNA(Xy, noNA = 0.2)
 #' 
-#' forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
+#' forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=FALSE)
 #' nimp = 5 # number of imputations needed
 #' # regular (fast)
 #' Xy_imp = ForestDiffusion.impute(forest_model, k=nimp)

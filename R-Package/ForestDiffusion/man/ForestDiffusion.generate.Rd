@@ -4,7 +4,7 @@
 \alias{ForestDiffusion.generate}
 \title{Generate new observations with a trained ForestDiffusion model}
 \usage{
-ForestDiffusion.generate(object, batch_size = NULL, n_t = NULL)
+ForestDiffusion.generate(object, batch_size = NULL, n_t = NULL, seed = NULL)
 }
 \arguments{
 \item{object}{a ForestDiffusion object}
@@ -12,6 +12,8 @@ ForestDiffusion.generate(object, batch_size = NULL, n_t = NULL)
 \item{batch_size}{(optional) number of observations generated; if not provided, will generate as many observations as the original dataset}
 
 \item{n_t}{(optional) number of noise levels (and sampling steps); increase for higher performance, but slows down training and sampling; if not provided, will use the same n_t as used in training.}
+
+\item{seed}{(optional) random seed used}
 }
 \value{
 Returns a data.frame with the generated data
@@ -29,7 +31,7 @@ Generate new observations by solving the reverse SDE (vp) / ODE (flow) starting 
  
  Xy = X
  Xy$y = y
- forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
+ forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=TRUE)
  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy))
 }  
 

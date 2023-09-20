@@ -6,6 +6,7 @@
 \usage{
 ForestDiffusion(
   X,
+  n_cores,
   label_y = NULL,
   name_y = "y",
   n_t = 50,
@@ -18,12 +19,13 @@ ForestDiffusion(
   eps = 0.001,
   beta_min = 0.1,
   beta_max = 8,
-  max_n_cpus = NULL,
   seed = NULL
 )
 }
 \arguments{
 \item{X}{data.frame of the dataset to be used.}
+
+\item{n_cores}{number of cpu cores used (if NULL, it will use all cores, otherwise it will use min(n_cores, max_available_cores); using more cores makes training faster, but increases the memory cost (so reduce it if you have memory problems)}
 
 \item{label_y}{optional vector containing the outcome variable if it is categorical for improved performance by training separate models per class; cannot contain missing values}
 
@@ -49,8 +51,6 @@ ForestDiffusion(
 
 \item{beta_max}{value of the beta_max in the vp process}
 
-\item{max_n_cpus}{(optional) limit the number of cpus used}
-
 \item{seed}{(optional) random seed used}
 }
 \value{
@@ -69,20 +69,20 @@ Train XGBoost regression models to estimate the score-function (for diffusion mo
  ## Generation
  
  # Classification problem (outcome is categorical)
- forest_model = ForestDiffusion(X, label_y=y, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
+ forest_model = ForestDiffusion(X=X, n_cores=1, label_y=y, n_t=50, duplicate_K=50, flow=TRUE)
  # last variable will be the label_y
  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(iris))
  
  # When you do not want to train a seperate model per model (or you have a regression problem)
  Xy = X
  Xy$y = y
- forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=TRUE, max_n_cpus=4)
+ forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=TRUE)
  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(iris))
  
  ## Imputation
  
  # flow=True generate better data but it cannot impute data
- forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
+ forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=FALSE)
  nimp = 5 # number of imputations needed
  # regular (fast)
  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)

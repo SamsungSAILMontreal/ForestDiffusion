@@ -12,7 +12,8 @@ ForestDiffusion.impute(
   repaint = FALSE,
   r = 5,
   j = 0.1,
-  n_t = NULL
+  n_t = NULL,
+  seed = NULL
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ ForestDiffusion.impute(
 \item{j}{jump size in percentage (default: 10 percent of the samples), this is part of REPAINT}
 
 \item{n_t}{(optional) number of noise levels (and sampling steps); increase for higher performance, but slows down training and sampling; if not provided, will use the same n_t as used in training.}
+
+\item{seed}{(optional) random seed used}
 }
 \value{
 Returns a data.frame with the generated data
@@ -52,7 +55,7 @@ Impute missing data by solving the reverse SDE while keeping the non-missing dat
  nimp = 5 # number of imputations needed
  Xy = X
  Xy$y = y
- forest_model = ForestDiffusion(Xy, n_t=50, duplicate_K=50, flow=FALSE, max_n_cpus=4)
+ forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=FALSE)
  # regular (fast)
  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
  # REPAINT (slow, but better)
