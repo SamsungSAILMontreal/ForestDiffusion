@@ -66,8 +66,8 @@ Examples to generate new samples given your dataset (can contain missing values)
 from ForestDiffusion import ForestDiffusionModel
 
 # Classification problem (outcome is categorical)
-forest_model = ForestDiffusionModel(X, y_label=y, n_t=50, duplicate_K=100, bin_indexes=[3], cat_indexes=[0,5], int_indexes=[1,2], diffusion_type='flow', n_jobs=-1)
-Xy_fake = forest_model.generate(batch_size=X.shape[0]) # last variable will be the y_label
+forest_model = ForestDiffusionModel(X, label_y=y, n_t=50, duplicate_K=100, bin_indexes=[3], cat_indexes=[0,5], int_indexes=[1,2], diffusion_type='flow', n_jobs=-1)
+Xy_fake = forest_model.generate(batch_size=X.shape[0]) # last variable will be the label_y
 
 # Regression problem (outcome is continuous)
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
@@ -91,7 +91,7 @@ We list the important hyperparameters below, their default values, and how to tu
 
 ```
 n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 will reduce training speed, but reduce memory load)
-y_label = None # provide the outcome variable if it is categorical for improved performance by training separate models per class; cannot contain missing values
+label_y = None # provide the outcome variable if it is categorical for improved performance by training separate models per class; cannot contain missing values
 bin_indexes = [] # vector that indicates which column is binary
 cat_indexes = [] # vector that indicates which column is categorical (>=3 categories)
 int_indexes = [] # vector that indicates which column is an integer (ordinal variables such as the number of cats in a box)
@@ -120,7 +120,7 @@ If you use clusters, you can control the amount of CPUs and RAM you take. There 
 duplicate_K = 100 # lowering this value will reduce memory demand and possibly performance (memory is proportional to this value)
 n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 will reduce training speed, but reduce memory load)
 n_t = 50 # reducing this value will likely reduce memory demand and possibly performance (stay at n_t=50 or higher)
-y_label = None # using None will reduce memory demand (since using this will train n_classes times more models)
+label_y = None # using None will reduce memory demand (since using this will train n_classes times more models)
 max_depth = 7 # reducing the depth of trees will reduce memory demand
 n_estimators = 100 # reducing the number of trees will reduce memory demand
 ```
