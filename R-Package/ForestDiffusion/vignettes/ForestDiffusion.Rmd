@@ -65,9 +65,9 @@ n_estimators = 100 # reducing the number of trees will reduce memory demand
 
 ## Generating data
 
-Let's use the Iris dataset as an example. Since it performs better, we will use the flow method to generate fake samples. Note that the dataset can contain missing values since XGBoost can handle NAs, yet the generated data will never have missing values (isn't it great?). For the sake of the vignette, we use $n_t=10$, and $n_{cores}=1$, but $n_t \geq 50$ is recommended and using more cores (no limit: set $n_{cores}$ to NULL or use high values such as $n_{cores}=8$) would make it train faster.
+Let's use the Iris dataset as an example. Since it performs better, we will use the flow method to generate fake samples. Note that the dataset can contain missing values since XGBoost can handle NAs, yet the generated data will never have missing values (isn't it great?).
 
-```{r, fig.width=6, fig.height=6}
+```{r, fig.width=6, fig.height=6, eval=FALSE}
 library(ForestDiffusion)
 
 # Load iris
@@ -85,20 +85,22 @@ Xy = iris
 plot(Xy)
 
 # When you do not want to train a seperate model per model (or you have a regression problem), you can provide the dataset together
-forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=10, duplicate_K=100, flow=TRUE, seed=666)
+forest_model = ForestDiffusion(X=Xy, n_cores=4, n_t=50, duplicate_K=100, flow=TRUE, seed=666)
+
 Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy), seed=666)
 plot(Xy_fake)
 
 # When the outcome y is categorical, you can provide it seperately to construct a seperate model per label (this can improve performance, but it will be slower)
-# forest_model = ForestDiffusion(X=X, n_cores=1, label_y=y, name_y='Species', n_t=10, duplicate_K=100, flow=TRUE, seed=666)
-# Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X), seed=666)
-# plot(Xy_fake)
+forest_model = ForestDiffusion(X=X, n_cores=4, label_y=y, name_y='Species', n_t=50, duplicate_K=100, flow=TRUE, seed=666)
+
+Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy), seed=666)
+plot(Xy_fake)
 
 ```
 
 Now that you have your fake data, you can use it in your own models directly or combine it with the real data.
 
-```{r}
+```{r, eval=FALSE}
 # Use the real data to fit a GLM
 fit = glm(Species ~ Sepal.Length, family = 'binomial', data=Xy)
 summary(fit)
@@ -117,7 +119,7 @@ summary(fit)
 
 One possible application of our method is data augmentation (augmenting real data with additional fake samples) to improve various methods. Here is an example of data augmentation with missForest.
 
-```{r}
+```{r, eval=FALSE}
 library(missForest)
 
 # Normally, you would use missForest as follows
@@ -132,9 +134,9 @@ mf_dataug = missForest(X_combined, verbose = TRUE) # train missForest with augme
 
 ## Accounting for uncertainty using multiple fake datasets (akin to multiple imputations)
 
-Training a single model with fake or data-augmented data is cool, but it might not account for uncertainty since you trained a single model. When imputing data, we generally want to use multiple imputed datasets, train our model on each imputed dataset, and then pool the results in order to account for the different possible imputations. We can apply the same idea here but with fake data! Let me show you how.
+Training a single model with fake or data-augmented data is nice, but it might not account for uncertainty since you trained a single model. When imputing data, we generally want to use multiple imputed datasets, train our model on each imputed dataset, and then pool the results in order to account for the different possible imputations. We can apply the same idea here but with fake data! Let me show you how.
 
-```{r}
+```{r, eval=FALSE}
 library(mice)
 
 # Generate fake data
@@ -154,27 +156,31 @@ mice::pool(fits)
 
 ## Multiple imputation
 
-Below, we show how to impute missing data using ForestDiffusion. For the sake of the vignette, we use $n_t=10$, and $n_{cores}=1$, but $n_t \geq 50$ is recommended and using more cores (no limit: set $n_{cores}$ to NULL or use high values such as $n_{cores}=8$) would make it train faster.
+Below, we show how to impute missing data using ForestDiffusion.
 
-```{r}
+```{r, eval=FALSE}
 library(mice)
 
-# Must train a VP diffusion model (instead of a Flow model) to be able to impute data
-forest_model_vp = ForestDiffusion(X=Xy, n_cores=1, n_t=10, duplicate_K=100, flow=FALSE, seed=666)
-
-# When the outcome y is categorical, you can provide it seperately to construct a seperate model per label (this can improve performance, but it will be slower)
-# forest_model = ForestDiffusion(X=X, n_cores=1, label_y=y, name_y='Species', n_t=10, duplicate_K=100, flow=TRUE, seed=666)
-
-
 nimp = 5 # number of imputations needed
+
+# Must train a VP diffusion model (instead of a Flow model) to be able to impute data
+forest_model_vp = ForestDiffusion(X=Xy, n_cores=4, n_t=50, duplicate_K=100, flow=FALSE, seed=666)
+
 Xy_imp = ForestDiffusion.impute(forest_model_vp, k=nimp, seed=666) # regular imputations (fast)
 Xy_imp = ForestDiffusion.impute(forest_model_vp, repaint=TRUE, r=10, j=5, k=nimp, seed=666) # REPAINT imputations (slow, but better)
-imp1 = Xy_imp[[1]] # first imputed dataset
+plot(Xy_imp[[1]]) # plot the first imputed dataset
+
+# When the outcome y is categorical, you can provide it seperately to construct a seperate model per label (this can improve performance, but it will be slower)
+forest_model_vp = ForestDiffusion(X=X, n_cores=4, label_y=y, name_y='Species', n_t=50, duplicate_K=100, flow=TRUE, seed=666)
+
+Xy_imp = ForestDiffusion.impute(forest_model_vp, k=nimp, seed=666) # regular imputations (fast)
+Xy_imp = ForestDiffusion.impute(forest_model_vp, repaint=TRUE, r=10, j=5, k=nimp, seed=666) # REPAINT imputations (slow, but better)
+plot(Xy_imp[[1]]) # plot the first imputed dataset
 ```
 
 Now that you have created multiple imputations, you can use fit one model per imputation and pool the results.
 
-```
+```{r, eval=FALSE}
 # Fit a model per imputed dataset
 fits <- with_datasets(Xy_imp, glm(Species ~ Sepal.Length, family = 'binomial'))
 
