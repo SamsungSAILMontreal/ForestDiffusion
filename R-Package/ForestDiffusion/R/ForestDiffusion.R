@@ -92,20 +92,6 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #'  # REPAINT (slow, but better)
 #'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=10, j=5, k=nimp)
 #'}
-#'
-#'  # Simple test (to verify that everything works)
-#'  data(iris)
-#'  set.seed(1)
-#'  X = data.frame(iris[1:5,1:2])
-#'  X = missForest::prodNA(X, noNA = 0.5)
-#'  forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=TRUE)
-#'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
-#'  label_y=c(0,1,0,1,1)
-#'  forest_model = ForestDiffusion(X=X, n_cores=1, label_y=label_y, n_t=2, duplicate_K=1, flow=TRUE)
-#'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
-#'  forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
-#'  Xy_fake = ForestDiffusion.impute(forest_model, k=1)
-#'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
 #'  
 #' @import xgboost foreach parallel doParallel parallelly
 #' @importFrom caret dummyVars
@@ -568,14 +554,6 @@ euler_solve = function(y0, my_model, N=101){
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy))
 #' }  
 #'
-#'  # Simple test (to verify that everything works)
-#'  data(iris)
-#'  set.seed(1)
-#'  X = data.frame(iris[1:5,1:2])
-#'  X = missForest::prodNA(X, noNA = 0.5)
-#'  forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=TRUE)
-#'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
-#'
 #' @references 
 #' Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
 #' Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
@@ -653,15 +631,6 @@ ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL, seed=NULL
 #'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=10, j=5, k=nimp)
 #' }
 #'
-#'  # Simple test (to verify that everything works)
-#'  data(iris)
-#'  set.seed(1)
-#'  X = data.frame(iris[1:5,1:2])
-#'  X = missForest::prodNA(X, noNA = 0.5)
-#'  forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
-#'  Xy_fake = ForestDiffusion.impute(forest_model, k=1)
-#'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
-#'  
 #' @references
 #' Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
 #' Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
@@ -749,17 +718,6 @@ ForestDiffusion.impute = function(object, k=1, X=NULL, label_y=NULL, repaint=FAL
 #' # Pool the results
 #' mice::pool(fits) 
 #' }
-#' 
-#' # Simple test (to verify that everything works)
-#' data(iris)
-#' set.seed(1)
-#' X = data.frame(iris[1:5,1:2])
-#' X = missForest::prodNA(X, noNA = 0.5)
-#' forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
-#' Xy_imp = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
-#' Xy_imp = ForestDiffusion.impute(forest_model, k=5)
-#' fits <- with_datasets(Xy_imp, lm(Sepal.Width ~ Sepal.Length))
-#' mice::pool(fits) 
 #' 
 #' @export
 

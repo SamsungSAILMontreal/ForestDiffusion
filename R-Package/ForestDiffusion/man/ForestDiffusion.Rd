@@ -89,20 +89,6 @@ Train XGBoost regression models to estimate the score-function (for diffusion mo
  # REPAINT (slow, but better)
  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=10, j=5, k=nimp)
 }
-
- # Simple test (to verify that everything works)
- data(iris)
- set.seed(1)
- X = data.frame(iris[1:5,1:2])
- X = missForest::prodNA(X, noNA = 0.5)
- forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=TRUE)
- Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
- label_y=c(0,1,0,1,1)
- forest_model = ForestDiffusion(X=X, n_cores=1, label_y=label_y, n_t=2, duplicate_K=1, flow=TRUE)
- Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
- forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
- Xy_fake = ForestDiffusion.impute(forest_model, k=1)
- Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
  
 }
 \references{
