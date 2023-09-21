@@ -35,7 +35,7 @@ nimp = 5 # number of imputations needed
 # regular (fast)
 Xy_imp = ForestDiffusion.impute(forest_model, k=nimp)
 # REPAINT (slow, but better)
-Xy_imp = ForestDiffusion.impute(forest_model, repaint=True, r=10, j=5, k=nimp)
+Xy_imp = ForestDiffusion.impute(forest_model, repaint=TRUE, r=10, j=5, k=nimp)
 
 # Fit a model per imputed dataset
 fits <- with_datasets(Xy_imp, glm(y ~ Sepal.Length, family = 'binomial'))
@@ -43,4 +43,16 @@ fits <- with_datasets(Xy_imp, glm(y ~ Sepal.Length, family = 'binomial'))
 # Pool the results
 mice::pool(fits) 
 }
+
+# Simple test (to verify that everything works)
+data(iris)
+set.seed(1)
+X = data.frame(iris[1:5,1:2])
+X = missForest::prodNA(X, noNA = 0.5)
+forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
+Xy_imp = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
+Xy_imp = ForestDiffusion.impute(forest_model, k=5)
+fits <- with_datasets(Xy_imp, lm(Sepal.Width ~ Sepal.Length))
+mice::pool(fits) 
+
 }

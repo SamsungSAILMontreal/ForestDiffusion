@@ -33,7 +33,7 @@ ForestDiffusion(
 
 \item{n_t}{number of noise levels (and sampling steps); increase for higher performance, but slows down training and sampling}
 
-\item{flow}{If True, uses flow (an ODE deterministic method); otherwise uses vp (a SDE stochastic method); 'vp' generally has slightly worse performance, but it is the only method that can be used for imputation}
+\item{flow}{If TRUE, uses flow (an ODE deterministic method); otherwise uses vp (a SDE stochastic method); 'vp' generally has slightly worse performance, but it is the only method that can be used for imputation}
 
 \item{max_depth}{max depth of the trees per XGBoost model}
 
@@ -81,14 +81,28 @@ Train XGBoost regression models to estimate the score-function (for diffusion mo
  
  ## Imputation
  
- # flow=True generate better data but it cannot impute data
+ # flow=TRUE generate better data but it cannot impute data
  forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=FALSE)
  nimp = 5 # number of imputations needed
  # regular (fast)
  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
  # REPAINT (slow, but better)
- Xy_fake = ForestDiffusion.impute(forest_model, repaint=True, r=10, j=5, k=nimp)
+ Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=10, j=5, k=nimp)
 }
+
+ # Simple test (to verify that everything works)
+ data(iris)
+ set.seed(1)
+ X = data.frame(iris[1:5,1:2])
+ X = missForest::prodNA(X, noNA = 0.5)
+ forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=TRUE)
+ Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
+ label_y=c(0,1,0,1,1)
+ forest_model = ForestDiffusion(X=X, n_cores=1, label_y=label_y, n_t=2, duplicate_K=1, flow=TRUE)
+ Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
+ forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
+ Xy_fake = ForestDiffusion.impute(forest_model, k=1)
+ Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
  
 }
 \references{

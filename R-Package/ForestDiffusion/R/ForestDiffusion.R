@@ -51,7 +51,7 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #' @param label_y optional vector containing the outcome variable if it is categorical for improved performance by training separate models per class; cannot contain missing values
 #' @param name_y name of label_y
 #' @param n_t number of noise levels (and sampling steps); increase for higher performance, but slows down training and sampling
-#' @param flow If True, uses flow (an ODE deterministic method); otherwise uses vp (a SDE stochastic method); 'vp' generally has slightly worse performance, but it is the only method that can be used for imputation
+#' @param flow If TRUE, uses flow (an ODE deterministic method); otherwise uses vp (a SDE stochastic method); 'vp' generally has slightly worse performance, but it is the only method that can be used for imputation
 #' @param max_depth max depth of the trees per XGBoost model
 #' @param n_estimators number of trees per XGBoost model
 #' @param eta learning rate per XGBoost model
@@ -84,14 +84,28 @@ build_data_xt = function(x0, x1, n_t=101, flow=FALSE, eps=1e-3, beta_0=0.1, beta
 #'  
 #'  ## Imputation
 #'  
-#'  # flow=True generate better data but it cannot impute data
+#'  # flow=TRUE generate better data but it cannot impute data
 #'  forest_model = ForestDiffusion(X=Xy, n_cores=1, n_t=50, duplicate_K=50, flow=FALSE)
 #'  nimp = 5 # number of imputations needed
 #'  # regular (fast)
 #'  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
 #'  # REPAINT (slow, but better)
-#'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=True, r=10, j=5, k=nimp)
+#'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=10, j=5, k=nimp)
 #'}
+#'
+#'  # Simple test (to verify that everything works)
+#'  data(iris)
+#'  set.seed(1)
+#'  X = data.frame(iris[1:5,1:2])
+#'  X = missForest::prodNA(X, noNA = 0.5)
+#'  forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=TRUE)
+#'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
+#'  label_y=c(0,1,0,1,1)
+#'  forest_model = ForestDiffusion(X=X, n_cores=1, label_y=label_y, n_t=2, duplicate_K=1, flow=TRUE)
+#'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
+#'  forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
+#'  Xy_fake = ForestDiffusion.impute(forest_model, k=1)
+#'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
 #'  
 #' @import xgboost foreach parallel doParallel parallelly
 #' @importFrom caret dummyVars
@@ -106,7 +120,7 @@ ForestDiffusion = function(X,
                label_y=NULL, # must be a categorical/binary variable; if provided will learn multiple models for each label y
                name_y = 'y',
                n_t=50,
-               flow=TRUE, # if True, use flow-matching; otherwise, use diffusion
+               flow=TRUE, # if TRUE, use flow-matching; otherwise, use diffusion
                max_depth = 7, n_estimators = 100, eta=0.3, # xgboost hyperparameters
                duplicate_K=50, # number of noise per data sample (or equivalently the number of times we duplicate the rows of the dataset)
                true_min_max_values=NULL, # Vector of form [[min_x, min_y], [max_x, max_y]]; If  provided, we use these values as the min/max for each variables when using clipping
@@ -554,6 +568,14 @@ euler_solve = function(y0, my_model, N=101){
 #'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(Xy))
 #' }  
 #'
+#'  # Simple test (to verify that everything works)
+#'  data(iris)
+#'  set.seed(1)
+#'  X = data.frame(iris[1:5,1:2])
+#'  X = missForest::prodNA(X, noNA = 0.5)
+#'  forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=TRUE)
+#'  Xy_fake = ForestDiffusion.generate(forest_model, batch_size=NROW(X))
+#'
 #' @references 
 #' Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
 #' Generating and Imputing Tabular Data via Diffusion and Flow-based Gradient-Boosted Trees. 
@@ -628,8 +650,17 @@ ForestDiffusion.generate = function(object, batch_size=NULL, n_t=NULL, seed=NULL
 #'  # regular (fast)
 #'  Xy_fake = ForestDiffusion.impute(forest_model, k=nimp)
 #'  # REPAINT (slow, but better)
-#'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=True, r=10, j=5, k=nimp)
+#'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=10, j=5, k=nimp)
 #' }
+#'
+#'  # Simple test (to verify that everything works)
+#'  data(iris)
+#'  set.seed(1)
+#'  X = data.frame(iris[1:5,1:2])
+#'  X = missForest::prodNA(X, noNA = 0.5)
+#'  forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
+#'  Xy_fake = ForestDiffusion.impute(forest_model, k=1)
+#'  Xy_fake = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
 #'  
 #' @references
 #' Alexia Jolicoeur-Martineau, Kilian Fatras, Tal Kachman. 
@@ -710,7 +741,7 @@ ForestDiffusion.impute = function(object, k=1, X=NULL, label_y=NULL, repaint=FAL
 #' # regular (fast)
 #' Xy_imp = ForestDiffusion.impute(forest_model, k=nimp)
 #' # REPAINT (slow, but better)
-#' Xy_imp = ForestDiffusion.impute(forest_model, repaint=True, r=10, j=5, k=nimp)
+#' Xy_imp = ForestDiffusion.impute(forest_model, repaint=TRUE, r=10, j=5, k=nimp)
 #' 
 #' # Fit a model per imputed dataset
 #' fits <- with_datasets(Xy_imp, glm(y ~ Sepal.Length, family = 'binomial'))
@@ -718,6 +749,18 @@ ForestDiffusion.impute = function(object, k=1, X=NULL, label_y=NULL, repaint=FAL
 #' # Pool the results
 #' mice::pool(fits) 
 #' }
+#' 
+#' # Simple test (to verify that everything works)
+#' data(iris)
+#' set.seed(1)
+#' X = data.frame(iris[1:5,1:2])
+#' X = missForest::prodNA(X, noNA = 0.5)
+#' forest_model = ForestDiffusion(X=X, n_cores=1, n_t=2, duplicate_K=1, flow=FALSE)
+#' Xy_imp = ForestDiffusion.impute(forest_model, repaint=TRUE, r=2, j=5, k=1)
+#' Xy_imp = ForestDiffusion.impute(forest_model, k=5)
+#' fits <- with_datasets(Xy_imp, lm(Sepal.Width ~ Sepal.Length))
+#' mice::pool(fits) 
+#' 
 #' @export
 
 with_datasets <- function(data, expr) {
