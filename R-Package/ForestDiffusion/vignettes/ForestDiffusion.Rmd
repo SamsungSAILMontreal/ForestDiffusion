@@ -29,7 +29,7 @@ You must set the maximum amount of cores used by ForestDiffusion through the arg
 
 We list the important hyperparameters below, their default values, and how to choose them:
 
-```
+```{r, eval=FALSE}
 n_cores = NULL # maximum amount of cores used; leaving it at NULL will use all availables cores; higher values increase training speed, but also memory cost
 X # your dataset 
 label_y = None # provide the outcome variable if it is categorical for improved performance by training separate models per class (training will be slower); cannot contain missing values
@@ -43,7 +43,7 @@ n_estimators = 100 # number of trees per XGBoost model
 ```
 
 Regarding the imputation with REPAINT, there are two important hyperparameters:
-```
+```{r, eval=FALSE}
 r = 10 # number of repaints, 5 or 10 is good
 j = 0.1 # percentage of the jump size; should be around 10% of n_t
 ```

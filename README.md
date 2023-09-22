@@ -8,10 +8,11 @@ This repo contains the official implementation of the paper [Generating and Impu
 
 The code for the R package is in the R-package folder. You can install the R package in R using:
 ```
-install.packages('ForestDiffusion')
+install.packages("devtools") # do once if not already installed
+devtools::install_github("SamsungSAILMontreal/ForestDiffusion/R-Package/ForestDiffusion")
 ```
 
-For anything R related, please see XXXXX for the R documentation and vignette explaining how to use the package. The rest of the README is specific to the Python library.
+Please see XXXXX for the R documentation and vignette explaining how to use the package. The rest of the README is specific to the Python library.
 
 ## Install the Python library
 
