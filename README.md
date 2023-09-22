@@ -2,7 +2,7 @@
 
 This repo contains the official implementation of the paper [Generating and Imputing Tabular Data via Diffusion and Flow-based XGBoost Models](https://arxiv.org/abs/2309.09968). To make it easily accessible, we release our code through a Python library and an R package. See also our [blog post](https://ajolicoeur.wordpress.com/2023/09/19/xgboost-diffusion/) for more information.
 
-![](https://raw.githubusercontent.com/AlexiaJM/Tabular_Flow_Matching/master/iris_cropped.png)
+![](https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/iris_cropped.png)
 
 ## R library
 
@@ -12,7 +12,7 @@ install.packages("devtools") # do once if not already installed
 devtools::install_github("SamsungSAILMontreal/ForestDiffusion/R-Package/ForestDiffusion")
 ```
 
-Please see XXXXX for the R documentation and vignette explaining how to use the package. The rest of the README is specific to the Python library.
+Please see the [documentation](https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/R-Package/Documentation.pdf) and [a vignette with examples](https://htmlpreview.github.io/?https://github.com/SamsungSAILMontreal/ForestDiffusion/master/R-Package/Vignette.html) for guidance. The rest of the README is specific to the Python library.
 
 ## Install the Python library
 
