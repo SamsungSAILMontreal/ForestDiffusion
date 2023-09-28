@@ -116,21 +116,32 @@ class ForestDiffusionModel():
     # Fit model(s)
     n_steps = n_t
     n_y = len(self.y_uniques) # for each class train a seperate model
-    self.regr = Parallel(n_jobs=self.n_jobs)( # using all cpus
-            delayed(self.train_parallel)(
+
+    if self.n_jobs == 1:
+      self.regr = [[[None for k in range(self.c)] for i in range(n_steps)] for j in self.y_uniques]
+      for i in range(n_steps):
+        for j in range(len(self.y_uniques)): 
+          for k in range(self.c): 
+            self.regr[j][i][k] = self.train_parallel(
               X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
               y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], k]
-              ) for i in range(n_steps) for j in self.y_uniques for k in range(self.c)
-            )
-    # Replace fits with doubly loops to make things easier
-    self.regr_ = [[[None for k in range(self.c)] for i in range(n_steps)] for j in self.y_uniques]
-    current_i = 0
-    for i in range(n_steps):
-      for j in range(len(self.y_uniques)): 
-        for k in range(self.c): 
-          self.regr_[j][i][k] = self.regr[current_i]
-          current_i += 1
-    self.regr = self.regr_
+              )
+    else:
+      self.regr = Parallel(n_jobs=self.n_jobs)( # using all cpus
+              delayed(self.train_parallel)(
+                X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
+                y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], k]
+                ) for i in range(n_steps) for j in self.y_uniques for k in range(self.c)
+              )
+      # Replace fits with doubly loops to make things easier
+      self.regr_ = [[[None for k in range(self.c)] for i in range(n_steps)] for j in self.y_uniques]
+      current_i = 0
+      for i in range(n_steps):
+        for j in range(len(self.y_uniques)): 
+          for k in range(self.c): 
+            self.regr_[j][i][k] = self.regr[current_i]
+            current_i += 1
+      self.regr = self.regr_
 
   def train_parallel(self, X_train, y_train):
 

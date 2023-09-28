@@ -52,7 +52,7 @@ parser.add_argument('--nexp', type=int, default=3,
                     help='number of experiences per parameter setting')
 parser.add_argument('--ngen', type=int, default=5,
                     help='number of generations per method')
-parser.add_argument('--datasets', nargs='+', type=str, default=['iris', 'wine', 'parkinsons', 'climate_model_crashes', 'concrete_compression', 'yacht_hydrodynamics', 'airfoil_self_noise', 'connectionist_bench_sonar', 'ionosphere', 'qsar_biodegradation', 'seeds', 'glass', 'ecoli', 'yeast', 'libras', 'planning_relax', 'blood_transfusion', 'breast_cancer_diagnostic', 'connectionist_bench_vowel', 'concrete_slump', 'wine_quality_red', 'wine_quality_white', 'california', 'bean'],
+parser.add_argument('--datasets', nargs='+', type=str, default=['iris', 'wine', 'parkinsons', 'climate_model_crashes', 'concrete_compression', 'yacht_hydrodynamics', 'airfoil_self_noise', 'connectionist_bench_sonar', 'ionosphere', 'qsar_biodegradation', 'seeds', 'glass', 'ecoli', 'yeast', 'libras', 'planning_relax', 'blood_transfusion', 'breast_cancer_diagnostic', 'connectionist_bench_vowel', 'concrete_slump', 'wine_quality_red', 'wine_quality_white', 'california', 'bean', 'tictactoe','congress','car'],
                     help='datasets on which to run the experiments')
 
 # Setting for Missingness if used
@@ -75,6 +75,7 @@ parser.add_argument('--ycond', type=str2bool, default=True, help='If True, make 
 parser.add_argument('--eps', type=float, default=1e-3, help='')
 parser.add_argument('--beta_min', type=float, default=0.1, help='')
 parser.add_argument('--beta_max', type=float, default=8, help='')
+parser.add_argument('--n_jobs', type=int, default=-1, help='')
 
 # stasy hyperparameters
 parser.add_argument('--act', type=str, default='elu', help='')
@@ -399,6 +400,7 @@ if __name__ == "__main__":
                             cat_indexes=cat_indexes_no_y,
                             bin_indexes=bin_indexes_no_y,
                             int_indexes=int_indexes_no_y,
+                            n_jobs=args.n_jobs,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
                     else:
@@ -414,6 +416,7 @@ if __name__ == "__main__":
                             cat_indexes=cat_indexes_no_y,
                             bin_indexes=bin_indexes_no_y,
                             int_indexes=int_indexes_no_y,
+                            n_jobs=args.n_jobs,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
                     Xy_fake = forest_model.generate(batch_size=args.ngen*Xy_train_used.shape[0], n_t=args.n_t_sampling)

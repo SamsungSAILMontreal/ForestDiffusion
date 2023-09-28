@@ -17,7 +17,7 @@ DATASETS = ['iris', 'wine', 'california', 'parkinsons', \
             'blood_transfusion', 'breast_cancer_diagnostic', \
             'connectionist_bench_vowel', 'concrete_slump', \
             'wine_quality_red', 'wine_quality_white', \
-            'bean']
+            'bean', 'tictactoe','congress','car']
 
 def dataset_loader(dataset):
     """
@@ -126,6 +126,18 @@ def dataset_loader(dataset):
         elif dataset == 'bean':
             my_data = fetch_bean()
             int_x = [0,6]
+            cat_y = True
+        elif dataset == 'tictactoe': # all categorical
+            my_data = fetch_tictactoe()
+            cat_x = [0,1,2,3,4,5,6,7,8]
+            bin_y = True
+        elif dataset == 'congress': # all categorical
+            my_data = fetch_congress()
+            cat_x = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+            cat_y = True
+        elif dataset == 'car': # all categorical
+            my_data = fetch_car()
+            cat_x = [0,1,2,3,4,5]
             cat_y = True
         else:
             raise Exception('dataset does not exists')
@@ -443,5 +455,62 @@ def fetch_bean():
         Xy = {}
         Xy['data'] = df.values[:, :-1].astype('float')
         Xy['target'] =  pd.factorize(df.values[:, -1])[0] # str to numeric
+
+    return Xy
+
+def fetch_tictactoe():
+    if not os.path.isdir('datasets/tictactoe'):
+        os.mkdir('datasets/tictactoe')
+        url = 'https://archive.ics.uci.edu/static/public/101/tic+tac+toe+endgame.zip'
+        wget.download(url, out='datasets/tictactoe/')
+
+    with zipfile.ZipFile('datasets/tictactoe/tic+tac+toe+endgame.zip', 'r') as zip_ref:
+        zip_ref.extractall('datasets/tictactoe')
+
+    with open('datasets/tictactoe/tic-tac-toe.data', 'rb') as f:
+        df = pd.read_csv(f, delimiter=',', header=None)
+        Xy = {}
+        Xy['data'] =  np.zeros(df.values[:, :-1].shape)
+        for i in range(Xy['data'].shape[1]):
+            Xy['data'][:, i] = pd.factorize(df.values[:, i])[0]
+        Xy['target'] =  pd.factorize(df.values[:, -1])[0]
+
+    return Xy
+
+def fetch_congress():
+    if not os.path.isdir('datasets/congress'):
+        os.mkdir('datasets/congress')
+        url = 'https://archive.ics.uci.edu/static/public/105/congressional+voting+records.zip'
+        wget.download(url, out='datasets/congress/')
+
+    with zipfile.ZipFile('datasets/congress/congressional+voting+records.zip', 'r') as zip_ref:
+        zip_ref.extractall('datasets/congress')
+
+    with open('datasets/congress/house-votes-84.data', 'rb') as f:
+        df = pd.read_csv(f, delimiter=',', header=None)
+        Xy = {}
+        Xy['data'] =  np.zeros(df.values[:, 1:].shape)
+        for i in range(Xy['data'].shape[1]):
+            Xy['data'][:, i] = pd.factorize(df.values[:, i+1])[0]
+        Xy['target'] =  pd.factorize(df.values[:, 0])[0]
+
+    return Xy
+
+def fetch_car():
+    if not os.path.isdir('datasets/car'):
+        os.mkdir('datasets/car')
+        url = 'https://archive.ics.uci.edu/static/public/19/car+evaluation.zip'
+        wget.download(url, out='datasets/car/')
+
+    with zipfile.ZipFile('datasets/car/car+evaluation.zip', 'r') as zip_ref:
+        zip_ref.extractall('datasets/car')
+
+    with open('datasets/car/car.data', 'rb') as f:
+        df = pd.read_csv(f, delimiter=',', header=None)
+        Xy = {}
+        Xy['data'] =  np.zeros(df.values[:, :-1].shape)
+        for i in range(Xy['data'].shape[1]):
+            Xy['data'][:, i] = pd.factorize(df.values[:, i])[0]
+        Xy['target'] =  pd.factorize(df.values[:, -1])[0]
 
     return Xy

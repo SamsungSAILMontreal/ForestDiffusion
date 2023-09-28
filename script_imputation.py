@@ -53,7 +53,7 @@ parser.add_argument('--nexp', type=int, default=3,
                     help='number of experiences per method')
 parser.add_argument('--nimp', type=int, default=5,
                     help='number of imputations per method')
-parser.add_argument('--datasets', nargs='+', type=str, default=['iris', 'wine', 'parkinsons', 'climate_model_crashes', 'concrete_compression', 'yacht_hydrodynamics', 'airfoil_self_noise', 'connectionist_bench_sonar', 'ionosphere', 'qsar_biodegradation', 'seeds', 'glass', 'ecoli', 'yeast', 'libras', 'planning_relax', 'blood_transfusion', 'breast_cancer_diagnostic', 'connectionist_bench_vowel', 'concrete_slump', 'wine_quality_red', 'wine_quality_white', 'california', 'bean'],
+parser.add_argument('--datasets', nargs='+', type=str, default=['iris', 'wine', 'parkinsons', 'climate_model_crashes', 'concrete_compression', 'yacht_hydrodynamics', 'airfoil_self_noise', 'connectionist_bench_sonar', 'ionosphere', 'qsar_biodegradation', 'seeds', 'glass', 'ecoli', 'yeast', 'libras', 'planning_relax', 'blood_transfusion', 'breast_cancer_diagnostic', 'connectionist_bench_vowel', 'concrete_slump', 'wine_quality_red', 'wine_quality_white', 'california', 'bean', 'tictactoe','congress','car'],
                     help='datasets on which to run the experiments')
 parser.add_argument('--naug', type=int, default=5,
                     help='number of augmentation if used')
@@ -77,6 +77,7 @@ parser.add_argument('--beta_min', type=float, default=0.1, help='')
 parser.add_argument('--beta_max', type=float, default=8, help='')
 parser.add_argument('--repaint_r', type=int, default=10, help='number of repaints')
 parser.add_argument('--repaint_j', type=float, default=0.1, help='percentage jump size of repaint (jump size=5 make sense for n_t=50)')
+parser.add_argument('--n_jobs', type=int, default=-1, help='')
 
 args = parser.parse_args()
 
@@ -296,6 +297,7 @@ if __name__ == "__main__":
                             cat_indexes=cat_indexes_no_y,
                             bin_indexes=bin_indexes_no_y,
                             int_indexes=int_indexes_no_y,
+                            n_jobs=args.n_jobs,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
                     else:
@@ -311,6 +313,7 @@ if __name__ == "__main__":
                             cat_indexes=cat_indexes_no_y,
                             bin_indexes=bin_indexes_no_y,
                             int_indexes=int_indexes_no_y,
+                            n_jobs=args.n_jobs,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
 

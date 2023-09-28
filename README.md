@@ -61,6 +61,8 @@ As always, note that from the code refactoring and cleaning, the randomness will
 
 Install the pip package (as shown above). 
 
+Firstly, you should set n_jobs (the number of CPU cores used to parallelize the training of the models) to a reasonable value to prevent out-of-memory errors. Let's say you have 16 CPU cores. Then n_jobs=16 (or n_jobs=-1, i.e., using all cores) means training 16 models at a time using one core per model. It might be better to use a smaller value like n_jobs=4 to train 4 models at a time using 4 cores per model. The higher n_jobs is (or when n_jobs=1), the more memory-demanding it will be, which increases the risks of having out-of-memory errors.
+
 Examples to generate new samples given your dataset (can contain missing values):
 
 ```
@@ -110,16 +112,12 @@ r = 10 # number of repaints, 5 or 10 is good
 j = 5 # jump size; should be around 10% of n_t
 ```
 
-## Potential memory problems and solutions 😭
+## How to reduce the memory (RAM) usage
 
-Our method trains p\*n_t models in parallel using CPUs, where p is the number of variables and n_t is the number of noise levels. Furthermore, we make the dataset much bigger by duplicating the rows many times (100 times is the default).
-
-To speed up the training, you will need as many CPUs as possible. Training the multiple models using only 4 CPUs could take a long time. However, the more CPUs you use, the higher the memory cost will be! This is because each worker/CPU will train its own model, which will require its own amount of memory (RAM). So, there is a balance to be reached between enough CPUs for speed but not too much so that it doesn't blow up the memory.
-
-If you use clusters, you can control the amount of CPUs and RAM you take. There are also ways to force Python to only use a subset of the CPUs (using the n_jobs parameters). We provide below some hyperparameters that can be changed to reduce the memory load:
+Our method trains p\*n_t models in parallel using CPUs, where p is the number of variables and n_t is the number of noise levels. Furthermore, we make the dataset much bigger by duplicating the rows many times (100 times is the default). You may encounter out-of-memory problems in case of large datasets or if you have too many CPUs and use n_jobs=-1. We provide below some hyperparameters that can be changed to reduce the memory load:
 ```
 duplicate_K = 100 # lowering this value will reduce memory demand and possibly performance (memory is proportional to this value)
-n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 will reduce training speed, but reduce memory load)
+n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 reduces the memory demand, but it may reduce training speed)
 n_t = 50 # reducing this value will likely reduce memory demand and possibly performance (stay at n_t=50 or higher)
 label_y = None # using None will reduce memory demand (since using this will train n_classes times more models)
 max_depth = 7 # reducing the depth of trees will reduce memory demand

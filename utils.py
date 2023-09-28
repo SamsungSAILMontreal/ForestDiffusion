@@ -254,15 +254,15 @@ def minmax_scale_dummy(X_train, X_test, cat_indexes=[], mask=None, divide_by=2):
     X_test_ = copy.deepcopy(X_test)
     # normalization of continuous variables
     scaler = MinMaxScaler()
-    not_cat_indexes = [i for i in range(X_train_.shape[1]) if i not in cat_indexes]
-    # Fit
-    scaler.fit(X_train_[:, not_cat_indexes])
+    if len(cat_indexes) != X_train_.shape[1]: # if all variables are categorical, we do not scale-transform
+        not_cat_indexes = [i for i in range(X_train_.shape[1]) if i not in cat_indexes]
+        scaler.fit(X_train_[:, not_cat_indexes])
 
-    #Transforms
-    X_train_[:, not_cat_indexes] = scaler.transform(X_train_[:, not_cat_indexes])
-    X_test_[:, not_cat_indexes] = scaler.transform(X_test_[:, not_cat_indexes])
+        #Transforms
+        X_train_[:, not_cat_indexes] = scaler.transform(X_train_[:, not_cat_indexes])
+        X_test_[:, not_cat_indexes] = scaler.transform(X_test_[:, not_cat_indexes])
 
-    # Dummify categorical variables (>=3 categories)
+    # One-hot the categorical variables (>=3 categories)
     df_names_before, df_names_after = None, None
     n = X_train.shape[0]
     if len(cat_indexes) > 0:
@@ -293,12 +293,12 @@ def minmax_scale(X_train, X_test, cat_indexes=[]):
     X_test_ = copy.deepcopy(X_test)
     # normalization of continuous variables
     scaler = MinMaxScaler()
-    not_cat_indexes = [i for i in range(X_train_.shape[1]) if i not in cat_indexes]
-    # Fit
-    scaler.fit(X_train_[:, not_cat_indexes])
+    if len(cat_indexes) != X_train_.shape[1]: # if all variables are categorical, we do not scale-transform
+        not_cat_indexes = [i for i in range(X_train_.shape[1]) if i not in cat_indexes]
+        scaler.fit(X_train_[:, not_cat_indexes])
 
-    #Transforms
-    X_train_[:, not_cat_indexes] = scaler.transform(X_train_[:, not_cat_indexes])
-    X_test_[:, not_cat_indexes] = scaler.transform(X_test_[:, not_cat_indexes])
+        #Transforms
+        X_train_[:, not_cat_indexes] = scaler.transform(X_train_[:, not_cat_indexes])
+        X_test_[:, not_cat_indexes] = scaler.transform(X_test_[:, not_cat_indexes])
 
     return X_train_, X_test_, scaler
