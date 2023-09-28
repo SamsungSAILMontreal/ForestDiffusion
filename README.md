@@ -63,7 +63,9 @@ Install the pip package (as shown above).
 
 Firstly, you should set n_jobs (the number of CPU cores used to parallelize the training of the models) to a reasonable value to prevent out-of-memory errors. Let's say you have 16 CPU cores. Then n_jobs=16 (or n_jobs=-1, i.e., using all cores) means training 16 models at a time using one core per model. It might be better to use a smaller value like n_jobs=4 to train 4 models at a time using 4 cores per model. The higher n_jobs is (or when n_jobs=1), the more memory-demanding it will be, which increases the risks of having out-of-memory errors.
 
-Examples to generate new samples given your dataset (can contain missing values):
+Your dataset must be in numpy format. If you have a pandas dataset, you can convert using ```dataset_numpy = dataset.to_numpy()```. The dataset can contain missing values.
+
+Examples to generate new samples given your dataset:
 
 ```
 from ForestDiffusion import ForestDiffusionModel
