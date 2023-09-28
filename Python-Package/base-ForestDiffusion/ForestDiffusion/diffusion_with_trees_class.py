@@ -17,8 +17,8 @@ from joblib import delayed, Parallel
 # Make sure to specific which features are categorical and which are integers
 # Note: Binary features can be considered integers since they will be rounded to the nearest integer and then clipped
 class ForestDiffusionModel():
-
-  def __init__(self, X, 
+  def __init__(self, 
+               X, # Numpy dataset 
                label_y=None, # must be a categorical/binary variable; if provided will learn multiple models for each label y
                n_t=50, # number of noise level
                model='xgboost', # xgboost, random_forest, lgbm, catboost
@@ -37,6 +37,9 @@ class ForestDiffusionModel():
                n_jobs=-1, # cpus used (feel free to limit it to something small, this will leave more cpus per model; for lgbm you have to use n_jobs=1, otherwise it will never finish)
                seed=666): # Duplicate the dataset for improved performance
 
+    assert isinstance(X, np.ndarray), "Input dataset must be a Numpy array"
+    assert len(X.shape)==2, "Input dataset must have two dimensions [n,p]"
+    assert diffusion_type == 'vp' or diffusion_type == 'flow'
     np.random.seed(seed)
 
     # Sanity check, must remove observations with only missing data
@@ -81,7 +84,6 @@ class ForestDiffusionModel():
     if model == 'random_forest' and np.sum(np.isnan(X1)) > 0:
       raise Error('The dataset must not contain missing data in order to use model=random_forest')
 
-    assert diffusion_type == 'vp' or diffusion_type == 'flow'
     self.diffusion_type = diffusion_type
     self.sde = None
     self.eps = eps
