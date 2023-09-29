@@ -61,7 +61,9 @@ As always, note that from the code refactoring and cleaning, the randomness will
 
 Install the pip package (as shown above). 
 
-Your dataset must be in numpy format. If you have a pandas dataset, you can convert using ```dataset_numpy = dataset.to_numpy()```. The dataset can contain missing values.
+Your dataset must be in numpy format. If you have a pandas dataset, you can convert using ```dataset_numpy = dataset.to_numpy()```. The dataset can contain missing values. 
+
+Note: It is recommended use your own computer instead of Google Colab, because Google Colab only has two weak CPU cores. Using your own modern computer/laptop will be much faster (e.g., a laptop with a 16 cores i7-1270P CPU will be at least 8x faster than Google Colab, which has two cores).
 
 Examples to generate new samples given your dataset:
 
