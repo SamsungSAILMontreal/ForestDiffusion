@@ -65,18 +65,25 @@ Your dataset must be in numpy format. If you have a pandas dataset, you can conv
 
 Note: It is recommended use your own computer instead of Google Colab, because Google Colab only has two weak CPU cores. Using your own modern computer/laptop will be much faster (e.g., a laptop with a 16 cores i7-1270P CPU will be at least 8x faster than Google Colab, which has two cores).
 
-Examples to generate new samples given your dataset:
+Examples to generate new samples with the Iris dataset:
 
 ```
 from ForestDiffusion import ForestDiffusionModel
 
+# Iris: numpy dataset with 4 variables (all numerical) and 1 outcome (categorical)
+from sklearn.datasets import load_iris
+import numpy as np
+my_data = load_iris()
+X, y = my_data['data'], my_data['target']
+Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
+
 # Classification problem (outcome is categorical)
-forest_model = ForestDiffusionModel(X, label_y=y, n_t=50, duplicate_K=100, bin_indexes=[3], cat_indexes=[0,5], int_indexes=[1,2], diffusion_type='flow', n_jobs=-1)
+forest_model = ForestDiffusionModel(X, label_y=y, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[], int_indexes=[], diffusion_type='flow', n_jobs=-1)
 Xy_fake = forest_model.generate(batch_size=X.shape[0]) # last variable will be the label_y
 
 # Regression problem (outcome is continuous)
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
-forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[2], cat_indexes=[0,1], int_indexes=[], diffusion_type='flow', n_jobs=-1)
+forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[], diffusion_type='flow', n_jobs=-1)
 Xy_fake = forest_model.generate(batch_size=X.shape[0])
 ```
 
@@ -85,9 +92,16 @@ Examples to impute your dataset:
 ```
 nimp = 5 # number of imputations needed
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
-forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[4], cat_indexes=[1,2], int_indexes=[0], diffusion_type='vp', n_jobs=-1)
+forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[0], diffusion_type='vp', n_jobs=-1)
 Xy_fake = forest_model.impute(k=nimp) # regular (fast)
 Xy_fake = forest_model.impute(repaint=True, r=10, j=5, k=nimp) # REPAINT (slow, but better)
+```
+
+You can pass any XGBoost parameters that you want to be modified from the default values:
+
+```
+forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[0], diffusion_type='vp', n_jobs=-1, 
+max_bin=128, subsample=0.1, gamma=3, min_child_weight=2)
 ```
 
 ## Hyperparameters
@@ -106,6 +120,7 @@ duplicate_K = 100 # number of noise per sample (or equivalently the number of ti
 seed = 666 # random seed value
 max_depth = 7 # max depth of the tree; recommended to leave at default
 n_estimators = 100 # number of trees per XGBoost model; recommended to leave at default
+gpu_hist = False # to use GPUs to train the XGBoost models
 ```
 
 Regarding the imputation with REPAINT, there are two important hyperparameters:
