@@ -24,18 +24,20 @@ class ForestDiffusionModel():
                model='xgboost', # xgboost, random_forest, lgbm, catboost
                diffusion_type='flow', # vp, flow (flow is better, but only vp can be used for imputation)
                max_depth = 7, n_estimators = 100, eta=0.3, # xgboost hyperparameters
+               tree_method='hist', reg_lambda=0.0, reg_alpha=0.0, subsample=1.0, # xgboost hyperparameters
                num_leaves=31, # lgbm hyperparameters
                duplicate_K=100, # number of different noise sample per real data sample
                bin_indexes=[], # vector which indicates which column is binary
                cat_indexes=[], # vector which indicates which column is categorical (>=3 categories)
                int_indexes=[], # vector which indicates which column is an integer (ordinal variables such as number of cats in a box)
                true_min_max_values=None, # Vector of form [[min_x, min_y], [max_x, max_y]]; If  provided, we use these values as the min/max for each variables when using clipping
-               gpu_hist=False, # using GPU or not
-               eps = 1e-3, 
+               gpu_hist=False, # using GPU or not with xgboost
+               eps=1e-3, 
                beta_min=0.1, 
                beta_max=8, 
                n_jobs=-1, # cpus used (feel free to limit it to something small, this will leave more cpus per model; for lgbm you have to use n_jobs=1, otherwise it will never finish)
-               seed=666): # Duplicate the dataset for improved performance
+               seed=666,
+               **xgboost_kwargs): # you can pass extra parameter for xgboost
 
     assert isinstance(X, np.ndarray), "Input dataset must be a Numpy array"
     assert len(X.shape)==2, "Input dataset must have two dimensions [n,p]"
@@ -80,6 +82,11 @@ class ForestDiffusionModel():
     self.gpu_hist = gpu_hist
     self.label_y = label_y
     self.n_jobs = n_jobs
+    self.tree_method = tree_method
+    self.reg_lambda = reg_lambda
+    self.reg_alpha = reg_alpha
+    self.subsample = subsample
+    self.xgboost_kwargs = xgboost_kwargs
 
     if model == 'random_forest' and np.sum(np.isnan(X1)) > 0:
       raise Error('The dataset must not contain missing data in order to use model=random_forest')
@@ -156,7 +163,8 @@ class ForestDiffusionModel():
         l2_leaf_reg=0.0, random_seed=self.seed) # consider t as a golden feature if t is a variable
     elif self.model == 'xgboost':
       out = xgb.XGBRegressor(n_estimators=self.n_estimators, objective='reg:squarederror', eta=self.eta, max_depth=self.max_depth, 
-        reg_lambda=0.0, subsample=1.0, seed=self.seed, tree_method='gpu_hist' if self.gpu_hist else 'hist', gpu_id=0 if self.gpu_hist else None)
+        reg_lambda=self.reg_lambda, reg_alpha=self.reg_alpha, subsample=self.subsample, seed=self.seed, tree_method=self.tree_method, 
+        device='cuda' if self.gpu_hist else 'cpu', **self.xgboost_kwargs)
     else:
       raise Exception("model value does not exists")
 
