@@ -145,13 +145,9 @@ max_depth = 7 # reducing the depth of trees will reduce memory demand
 n_estimators = 100 # reducing the number of trees will reduce memory demand
 ```
 
-## Advanced usage
+## Feature Importance
 
-For advanced applications, such as feature importance, you might want direct access to the XGBoost models.
-
-I made a simple example code showing how to extract the XGBoost models and and get the feature importance of each model: https://colab.research.google.com/drive/1hhizV0zYSIhWKyiycAll7XWsOXjAc2qx?usp=sharing.
-
-Just keep in mind that there are $kn_td$ models ($k$ is the number of classes if label_y is provided; otherwise, $k=1$; $d$ is the number of variables, $n_t$ is the number of noise levels), and the input must be the noisy data $x(t)$ at a specific noise level $t$. 
+I made a simple example code showing how to extract the XGBoost models and either get i) the feature importance of each model or ii) the average feature importance from all models (simpler): [Feature Importance Notebook](https://colab.research.google.com/drive/1hhizV0zYSIhWKyiycAll7XWsOXjAc2qx?usp=sharing#scrollTo=YU5aK0UWOhMG).
 
 ## References
 
