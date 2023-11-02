@@ -2,7 +2,15 @@
 
 This repo contains the official implementation of the paper [Generating and Imputing Tabular Data via Diffusion and Flow-based XGBoost Models](https://arxiv.org/abs/2309.09968). To make it easily accessible, we release our code through a Python library and an R package. See also our [blog post](https://ajolicoeur.wordpress.com/2023/09/19/xgboost-diffusion/) for more information.
 
-![](https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/iris_cropped.png)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/iris_cropped.png" alt="Iris generation"/>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/fi_shap.png" alt="Feature Importance"/>
+</p>
+
+2023-11-02 update: You can now get Feature Importance! See the [feature importance notebook](https://colab.research.google.com/drive/1hhizV0zYSIhWKyiycAll7XWsOXjAc2qx?usp=sharing) for more info.
 
 ## R library
 
