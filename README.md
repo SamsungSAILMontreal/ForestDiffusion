@@ -1,4 +1,4 @@
-# Tabular_Flow_Matching
+# Tabular Diffusion and Flow-Matching
 
 This repo contains the official implementation of the paper [Generating and Imputing Tabular Data via Diffusion and Flow-based XGBoost Models](https://arxiv.org/abs/2309.09968). To make it easily accessible, we release our code through a Python library and an R package. See also our [blog post](https://ajolicoeur.wordpress.com/2023/09/19/xgboost-diffusion/) for more information.
 
@@ -10,7 +10,9 @@ This repo contains the official implementation of the paper [Generating and Impu
   <img src="https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/fi_shap.png" alt="Feature Importance"/>
 </p>
 
-2023-11-02 update: You can now get Feature Importance! See the [feature importance notebook](https://colab.research.google.com/drive/1hhizV0zYSIhWKyiycAll7XWsOXjAc2qx?usp=sharing) for more info.
+**2023-11-02 update**: You can now get Feature Importance! See the [feature importance notebook](https://colab.research.google.com/drive/1hhizV0zYSIhWKyiycAll7XWsOXjAc2qx?usp=sharing) for more info.
+
+**2023-11-23 update**:  ForestFlow is now part of the wonderful TorchCFM (Conditional Flow Matching) library. This library is the most extensive library that exists on flow-matching! 😻 It now contains an [in-depth notebook](https://github.com/atong01/conditional-flow-matching/tree/main/examples/tabular) showing how to manually implement the ForestFlow method step by step. If you want to understand or even build upon our method 🙌, I highly recommend checking it out! 
 
 ## R library
 
