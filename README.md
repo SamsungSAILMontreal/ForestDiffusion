@@ -197,6 +197,11 @@ duplicate_K = 100 # lowering this value will reduce memory demand when n_batch=0
 ```
 
 
+## How to reduce the training time
+
+For maximum training speed, use all CPUs (n_jobs = -1) and the data iterator with 1 iteration per epoch (n_batch = 1). Furthermore, from the ablation, we found that vp-diffusion requires many noise levels to work well, but flow-matching works well even with as little as 10 noise levels; thus, you can reduce training time by using flow (diffusion_type = 'flow') with a small number of noise levels (n_t=10-20). Finally, duplicate_K corresponds to the number of epochs when (n_batch > 0) or the number of duplicated rows when (n_batch = 0); for large datasets (N > 10K), a smaller value may be enough for good performance (duplicate_K=10) while reducing the training time.
+
+
 ## Feature Importance
 
 I made a simple example code showing how to extract the XGBoost models and either get i) the feature importance of each model or ii) the average feature importance from all models (simpler): [Feature Importance Notebook](https://colab.research.google.com/drive/1hhizV0zYSIhWKyiycAll7XWsOXjAc2qx?usp=sharing#scrollTo=YU5aK0UWOhMG).
