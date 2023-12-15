@@ -20,12 +20,15 @@ import os
 from ml_collections import config_flags, config_dict
 
 def STaSy_model(numpy_data, categorical_columns=[], ordinal_columns=[], seed=42, epochs=10000,
-	activation = 'elu', layer_type = 'concatsquash', sde = 'vesde', lr = 2e-3, num_scales = 50, ngen=1):
+	activation = 'elu', layer_type = 'concatsquash', sde = 'vesde', lr = 2e-3, num_scales = 50, ngen=1, num_samples=None):
 
 	config = config_dict.ConfigDict()
 	config.workdir = "stasy"
 	config.seed = seed
 	config.device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+
+	if num_samples is None:
+		num_samples = numpy_data.shape[0]
 
 	config.training = training = config_dict.ConfigDict()
 	training.batch_size = 1000
@@ -212,7 +215,7 @@ def STaSy_model(numpy_data, categorical_columns=[], ordinal_columns=[], seed=42,
 			save_checkpoint(checkpoint_meta_dir, state)
 
 	# Generate samples
-	sampling_shape = (ngen*numpy_data.shape[0], config.data.image_size)
+	sampling_shape = (ngen*num_samples, config.data.image_size)
 	samples, n = sampling_fn(score_model, sampling_shape=sampling_shape)
 	samples = apply_activate(samples, transformer.output_info)
 	samples = transformer.inverse_transform(samples.cpu().numpy())

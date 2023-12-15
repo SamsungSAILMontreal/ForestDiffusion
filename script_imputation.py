@@ -53,6 +53,9 @@ parser.add_argument('--nexp', type=int, default=3,
                     help='number of experiences per method')
 parser.add_argument('--nimp', type=int, default=5,
                     help='number of imputations per method')
+parser.add_argument('--n_tries', type=int, default=5,
+                    help='number of models trained with different seeds in the metrics')
+
 parser.add_argument('--datasets', nargs='+', type=str, default=['iris', 'wine', 'parkinsons', 'climate_model_crashes', 'concrete_compression', 'yacht_hydrodynamics', 'airfoil_self_noise', 'connectionist_bench_sonar', 'ionosphere', 'qsar_biodegradation', 'seeds', 'glass', 'ecoli', 'yeast', 'libras', 'planning_relax', 'blood_transfusion', 'breast_cancer_diagnostic', 'connectionist_bench_vowel', 'concrete_slump', 'wine_quality_red', 'wine_quality_white', 'california', 'bean', 'tictactoe','congress','car'],
                     help='datasets on which to run the experiments')
 parser.add_argument('--naug', type=int, default=5,
@@ -78,6 +81,7 @@ parser.add_argument('--beta_max', type=float, default=8, help='')
 parser.add_argument('--repaint_r', type=int, default=10, help='number of repaints')
 parser.add_argument('--repaint_j', type=float, default=0.1, help='percentage jump size of repaint (jump size=5 make sense for n_t=50)')
 parser.add_argument('--n_jobs', type=int, default=-1, help='')
+parser.add_argument('--n_batch', type=int, default=1, help='If >0 use the data iterator with the specified number of batches')
 
 args = parser.parse_args()
 
@@ -142,9 +146,9 @@ if __name__ == "__main__":
 
         score_mae_min = {}
         score_mae_avg = {}
-        score_W2_miss = {}
-        score_W2_train = {}
-        score_W2_test = {}
+        score_W1_miss = {}
+        score_W1_train = {}
+        score_W1_test = {}
         mean_var = {}
         mean_mad_mean = {}
         mean_mad_median = {}
@@ -155,9 +159,9 @@ if __name__ == "__main__":
         for method in args.methods:
             score_mae_min[method] = 0.0
             score_mae_avg[method] = 0.0
-            score_W2_miss[method] = 0.0
-            score_W2_train[method] = 0.0
-            score_W2_test[method] = 0.0
+            score_W1_miss[method] = 0.0
+            score_W1_train[method] = 0.0
+            score_W1_test[method] = 0.0
             mean_var[method] = 0.0
             mean_mad_mean[method] = 0.0
             mean_mad_median[method] = 0.0
@@ -197,7 +201,7 @@ if __name__ == "__main__":
                 torch.manual_seed(n)
                 np.random.seed(n)
 
-                # Need to train/test split for evaluating the linear regression performance and for W2 based on test
+                # Need to train/test split for evaluating the linear regression performance and for W1 based on test
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=n, stratify=y if bin_y or cat_y else None)
                 Xy_train = np.concatenate((X_train, np.expand_dims(y_train, axis=1)), axis=1)
                 Xy_test = np.concatenate((X_test, np.expand_dims(y_test, axis=1)), axis=1)
@@ -298,6 +302,7 @@ if __name__ == "__main__":
                             bin_indexes=bin_indexes_no_y,
                             int_indexes=int_indexes_no_y,
                             n_jobs=args.n_jobs,
+                            n_batch=args.n_batch,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
                     else:
@@ -310,10 +315,11 @@ if __name__ == "__main__":
                             num_leaves=args.num_leaves, # lgbm hyperparameters
                             gpu_hist=args.gpu_hist,
                             duplicate_K=args.duplicate_K,
-                            cat_indexes=cat_indexes_no_y,
-                            bin_indexes=bin_indexes_no_y,
-                            int_indexes=int_indexes_no_y,
+                            cat_indexes=cat_indexes,
+                            bin_indexes=bin_indexes,
+                            int_indexes=int_indexes,
                             n_jobs=args.n_jobs,
+                            n_batch=args.n_batch,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
 
@@ -435,20 +441,20 @@ if __name__ == "__main__":
 
                     # Wasserstein-2 Distance based on L1 cost (after scaling)
                     if Xy_train.shape[0] < OTLIM:
-                        score_W2_miss[method] += np.sqrt(pot.emd2(pot.unif(Xy_train_scaled[M_scaled].shape[0]), pot.unif(Xy_fake_scaled[imp_i][M_scaled].shape[0]), M = pot.dist(Xy_train_scaled[M_scaled], Xy_fake_scaled[imp_i][M_scaled], metric='cityblock'))) / (args.nexp*args.nimp)
-                        score_W2_train[method] += np.sqrt(pot.emd2(pot.unif(Xy_train_scaled.shape[0]), pot.unif(Xy_fake_scaled[imp_i].shape[0]), M = pot.dist(Xy_train_scaled, Xy_fake_scaled[imp_i], metric='cityblock'))) / (args.nexp*args.nimp)
-                        score_W2_test[method] += np.sqrt(pot.emd2(pot.unif(Xy_test_scaled.shape[0]), pot.unif(Xy_fake_scaled[imp_i].shape[0]), M = pot.dist(Xy_test_scaled, Xy_fake_scaled[imp_i], metric='cityblock'))) / (args.nexp*args.nimp)
+                        score_W1_miss[method] += pot.emd2(pot.unif(Xy_train_scaled[M_scaled].shape[0]), pot.unif(Xy_fake_scaled[imp_i][M_scaled].shape[0]), M = pot.dist(Xy_train_scaled[M_scaled], Xy_fake_scaled[imp_i][M_scaled], metric='cityblock')) / (args.nexp*args.nimp)
+                        score_W1_train[method] += pot.emd2(pot.unif(Xy_train_scaled.shape[0]), pot.unif(Xy_fake_scaled[imp_i].shape[0]), M = pot.dist(Xy_train_scaled, Xy_fake_scaled[imp_i], metric='cityblock')) / (args.nexp*args.nimp)
+                        score_W1_test[method] += pot.emd2(pot.unif(Xy_test_scaled.shape[0]), pot.unif(Xy_fake_scaled[imp_i].shape[0]), M = pot.dist(Xy_test_scaled, Xy_fake_scaled[imp_i], metric='cityblock')) / (args.nexp*args.nimp)
 
                     # Trained on imputed data
                     X_fake, y_fake = data["imp"][method][imp_i][:,:-1], data["imp"][method][imp_i][:,-1]
-                    f1_imp, R2_imp = test_on_multiple_models(X_fake, y_fake, X_test, y_test, classifier=cat_y or bin_y)
+                    f1_imp, R2_imp = test_on_multiple_models(X_fake, y_fake, X_test, y_test, classifier=cat_y or bin_y, cat_indexes=cat_indexes_no_y, nexp=args.n_tries)
 
                     for key in['mean', 'lin', 'linboost', 'tree', 'treeboost']:
                         f1[method][key] += f1_imp[key] / (args.nexp*args.nimp)
                         R2[method][key] += R2_imp[key] / (args.nexp*args.nimp)
 
             # Write results in csv file
-            # Columns: dataset , method , score_rmse , score_W2 , mean_var , R2_oracle, R2_imp , f1_oracle, f1_imp
+            # Columns: dataset , method , score_rmse , score_W1 , mean_var , R2_oracle, R2_imp , f1_oracle, f1_imp
             mask_str = f"MCAR({p}) "
             if method in ['forest_diffusion', 'forest_knn', 'forest_diffusion_repaint']:
                 method_str = f"{method} n_t={args.n_t} n_t_sampling={args.n_t_sampling} model={args.forest_model} diffusion={args.diffusion_type} duplicate_K={args.duplicate_K} ycond={args.ycond} "
@@ -464,7 +470,7 @@ if __name__ == "__main__":
                 method_str = f"{method}(n_neighbors={args.n_neighbors}) "
             else:
                 method_str = f"{method} "
-            csv_str = f"{dataset} , " + f"{mask_str}, " + method_str + f", {score_mae_min[method]} , {score_mae_avg[method]} , {percent_bias[method]} , {coverage_rate[method]} , {score_W2_train[method]} , {score_W2_test[method]} , {mean_var[method]} , {mean_mad_mean[method]} , {mean_mad_median[method]} , {R2[method]['mean']} , {f1[method]['mean']} , {time_taken[method]} "
+            csv_str = f"{dataset} , " + f"{mask_str}, " + method_str + f", {score_mae_min[method]} , {score_mae_avg[method]} , {percent_bias[method]} , {coverage_rate[method]} , {score_W1_train[method]} , {score_W1_test[method]} , {mean_var[method]} , {mean_mad_mean[method]} , {mean_mad_median[method]} , {R2[method]['mean']} , {f1[method]['mean']} , {time_taken[method]} "
             for key in['lin', 'linboost', 'tree', 'treeboost']:
                 csv_str += f", {R2[method][key]} , {f1[method][key]} "
             csv_str += f"\n"

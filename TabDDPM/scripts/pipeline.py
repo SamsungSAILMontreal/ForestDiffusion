@@ -7,13 +7,13 @@ from TabDDPM.scripts.train import train
 from TabDDPM.scripts.sample import sample
 import pandas as pd
 import matplotlib.pyplot as plt
-import zero
 import TabDDPM.lib as lib
 import torch
 import numpy as np
 import shutil
 from pathlib import Path
 import gc
+import time
 
 def load_config(path) :
     with open(path, 'rb') as f:
@@ -58,8 +58,7 @@ def main_fn(config='TabDDPM/exp/my_data/config.toml',
         shutil.rmtree(dataset_dir)
         dataset_dir.mkdir()
 
-    timer = zero.Timer()
-    timer.run()
+    start = time.time()
 
     train(
         **raw_config['train']['main'],
@@ -111,6 +110,6 @@ def main_fn(config='TabDDPM/exp/my_data/config.toml',
 
     X_comb = np.concatenate((X_comb, np.expand_dims(y, axis=1)), axis=1)
 
-    print(f'Elapsed time: {str(timer)}')
+    print(f'Elapsed time: {time.time() - start}')
 
     return X_comb

@@ -17,7 +17,7 @@ DATASETS = ['iris', 'wine', 'california', 'parkinsons', \
             'blood_transfusion', 'breast_cancer_diagnostic', \
             'connectionist_bench_vowel', 'concrete_slump', \
             'wine_quality_red', 'wine_quality_white', \
-            'bean', 'tictactoe','congress','car']
+            'bean', 'tictactoe','congress','car', 'higgs']
 
 def dataset_loader(dataset):
     """
@@ -512,5 +512,22 @@ def fetch_car():
         for i in range(Xy['data'].shape[1]):
             Xy['data'][:, i] = pd.factorize(df.values[:, i])[0]
         Xy['target'] =  pd.factorize(df.values[:, -1])[0]
+
+    return Xy
+
+def fetch_higgs():
+    if not os.path.isdir('datasets/higgs'):
+        os.mkdir('datasets/higgs')
+        url = 'https://archive.ics.uci.edu/static/public/280/higgs.zip'
+        wget.download(url, out='datasets/higgs/')
+
+        with zipfile.ZipFile('datasets/higgs/higgs.zip', 'r') as zip_ref:
+            zip_ref.extractall('datasets/higgs')
+
+    with gzip.open('datasets/higgs/HIGGS.csv.gz', 'rb') as f:
+        df = pd.read_csv(f, delimiter=',', header = 0)
+        Xy = {}
+        Xy['data'] = df.values[:, 1:].astype('float')
+        Xy['target'] =  pd.factorize(df.values[:, 0])[0] # str to numeric
 
     return Xy

@@ -20,7 +20,7 @@ from data_loaders import dataset_loader
 from sklearn.model_selection import train_test_split
 import argparse
 from ForestDiffusion import ForestDiffusionModel
-from metrics import test_on_multiple_models, compute_coverage, test_imputation_regression
+from metrics import test_on_multiple_models, compute_coverage, test_imputation_regression, test_on_multiple_models_classifier
 from STaSy.stasy import STaSy_model
 from sdv.single_table import GaussianCopulaSynthesizer, TVAESynthesizer, CTGANSynthesizer, CopulaGANSynthesizer
 from sdv.metadata import SingleTableMetadata
@@ -52,6 +52,8 @@ parser.add_argument('--nexp', type=int, default=3,
                     help='number of experiences per parameter setting')
 parser.add_argument('--ngen', type=int, default=5,
                     help='number of generations per method')
+parser.add_argument('--n_tries', type=int, default=5,
+                    help='number of models trained with different seeds in the metrics')
 parser.add_argument('--datasets', nargs='+', type=str, default=['iris', 'wine', 'parkinsons', 'climate_model_crashes', 'concrete_compression', 'yacht_hydrodynamics', 'airfoil_self_noise', 'connectionist_bench_sonar', 'ionosphere', 'qsar_biodegradation', 'seeds', 'glass', 'ecoli', 'yeast', 'libras', 'planning_relax', 'blood_transfusion', 'breast_cancer_diagnostic', 'connectionist_bench_vowel', 'concrete_slump', 'wine_quality_red', 'wine_quality_white', 'california', 'bean', 'tictactoe','congress','car'],
                     help='datasets on which to run the experiments')
 
@@ -76,6 +78,7 @@ parser.add_argument('--eps', type=float, default=1e-3, help='')
 parser.add_argument('--beta_min', type=float, default=0.1, help='')
 parser.add_argument('--beta_max', type=float, default=8, help='')
 parser.add_argument('--n_jobs', type=int, default=-1, help='')
+parser.add_argument('--n_batch', type=int, default=1, help='If >0 use the data iterator with the specified number of batches')
 
 # stasy hyperparameters
 parser.add_argument('--act', type=str, default='elu', help='')
@@ -136,23 +139,25 @@ if __name__ == "__main__":
         if int_y:
             int_indexes.append(X.shape[1])
 
-        score_W2_train = {}
-        score_W2_test = {}
+        score_W1_train = {}
+        score_W1_test = {}
         coverage = {}
         coverage_test = {}
         time_taken = {}
         percent_bias = {}
         coverage_rate = {}
         AW = {}
+        f1_class = {}
         for method in args.methods:
-            score_W2_test[method] = 0.0
-            score_W2_train[method] = 0.0
+            score_W1_test[method] = 0.0
+            score_W1_train[method] = 0.0
             coverage[method] = 0.0
             coverage_test[method] = 0.0
             time_taken[method] = 0.0
             percent_bias[method] = 0.0
             coverage_rate[method] = 0.0
             AW[method] = 0.0
+            f1_class[method] = []
 
         R2 = {}
         f1 = {}
@@ -176,7 +181,7 @@ if __name__ == "__main__":
 
                 print(n)
 
-                # Need to train/test split for evaluating the linear regression performance and for W2 based on test
+                # Need to train/test split for evaluating the linear regression performance and for W1 based on test
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=n, stratify=y if bin_y or cat_y else None)
                 Xy_train = np.concatenate((X_train, np.expand_dims(y_train, axis=1)), axis=1)
                 Xy_test = np.concatenate((X_test, np.expand_dims(y_test, axis=1)), axis=1)
@@ -401,6 +406,7 @@ if __name__ == "__main__":
                             bin_indexes=bin_indexes_no_y,
                             int_indexes=int_indexes_no_y,
                             n_jobs=args.n_jobs,
+                            n_batch=args.n_batch,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
                     else:
@@ -413,10 +419,11 @@ if __name__ == "__main__":
                             num_leaves=args.num_leaves, # lgbm hyperparameters
                             gpu_hist=args.gpu_hist,
                             duplicate_K=args.duplicate_K,
-                            cat_indexes=cat_indexes_no_y,
-                            bin_indexes=bin_indexes_no_y,
-                            int_indexes=int_indexes_no_y,
+                            cat_indexes=cat_indexes,
+                            bin_indexes=bin_indexes,
+                            int_indexes=int_indexes,
                             n_jobs=args.n_jobs,
+                            n_batch=args.n_batch,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
                     Xy_fake = forest_model.generate(batch_size=args.ngen*Xy_train_used.shape[0], n_t=args.n_t_sampling)
@@ -441,23 +448,23 @@ if __name__ == "__main__":
                     Xy_train_scaled, Xy_fake_scaled, _, _, _ = minmax_scale_dummy(Xy_train, Xy_fake_i, cat_indexes, divide_by=2)
                     _, Xy_test_scaled, _, _, _ = minmax_scale_dummy(Xy_train, Xy_test, cat_indexes, divide_by=2)
 
-                    # Wasserstein-2 based on L1 cost (after scaling)
+                    # Wasserstein-1 based on L1 cost (after scaling)
                     if Xy_train.shape[0] < OTLIM:
-                        score_W2_train[method] += np.sqrt(pot.emd2(pot.unif(Xy_train_scaled.shape[0]), pot.unif(Xy_fake_scaled.shape[0]), M = pot.dist(Xy_train_scaled, Xy_fake_scaled, metric='cityblock'))) / (args.nexp*args.ngen)
-                        score_W2_test[method] += np.sqrt(pot.emd2(pot.unif(Xy_test_scaled.shape[0]), pot.unif(Xy_fake_scaled.shape[0]), M = pot.dist(Xy_test_scaled, Xy_fake_scaled, metric='cityblock'))) / (args.nexp*args.ngen)
+                        score_W1_train[method] += pot.emd2(pot.unif(Xy_train_scaled.shape[0]), pot.unif(Xy_fake_scaled.shape[0]), M = pot.dist(Xy_train_scaled, Xy_fake_scaled, metric='cityblock')) / (args.nexp*args.ngen)
+                        score_W1_test[method] += pot.emd2(pot.unif(Xy_test_scaled.shape[0]), pot.unif(Xy_fake_scaled.shape[0]), M = pot.dist(Xy_test_scaled, Xy_fake_scaled, metric='cityblock')) / (args.nexp*args.ngen)
 
                     X_fake, y_fake = Xy_fake_i[:,:-1], Xy_fake_i[:,-1]
 
                     # Trained on real data
-                    f1_real, R2_real = test_on_multiple_models(X_train, y_train, X_test, y_test, classifier=cat_y or bin_y)
+                    f1_real, R2_real = test_on_multiple_models(X_train, y_train, X_test, y_test, classifier=cat_y or bin_y, cat_indexes=cat_indexes_no_y, nexp=args.n_tries)
 
                     # Trained on fake data
-                    f1_fake, R2_fake = test_on_multiple_models(X_fake, y_fake, X_test, y_test, classifier=cat_y or bin_y)
+                    f1_fake, R2_fake = test_on_multiple_models(X_fake, y_fake, X_test, y_test, classifier=cat_y or bin_y, cat_indexes=cat_indexes_no_y, nexp=args.n_tries)
 
                     # Trained on real data and fake data
                     X_both = np.concatenate((X_train,X_fake), axis=0)
                     y_both = np.concatenate((y_train,y_fake))
-                    f1_both, R2_both = test_on_multiple_models(X_both, y_both, X_test, y_test, classifier=cat_y or bin_y)
+                    f1_both, R2_both = test_on_multiple_models(X_both, y_both, X_test, y_test, classifier=cat_y or bin_y, cat_indexes=cat_indexes_no_y, nexp=args.n_tries)
                     
                     for key in['mean', 'lin', 'linboost', 'tree', 'treeboost']:
                         f1[method]['real'][key] += f1_real[key] / (args.nexp*args.ngen)
@@ -466,6 +473,11 @@ if __name__ == "__main__":
                         R2[method]['real'][key] += R2_real[key] / (args.nexp*args.ngen)
                         R2[method]['fake'][key] += R2_fake[key] / (args.nexp*args.ngen)
                         R2[method]['both'][key] += R2_both[key] / (args.nexp*args.ngen)
+
+                    # Get another different fake data for use as test fake-data
+                    Xy_fake_j = Xy_fake[(gen_i + 1) % args.ngen] # 0 -> 1, 1-> 2, n -> 0
+                    # Classifier comparing real to fake data, the less it classify fake data as fake = the better
+                    f1_class[method] += [test_on_multiple_models_classifier(X_train_real=Xy_train, X_train_fake=Xy_fake_i, X_test_fake=Xy_fake_j, cat_indexes=cat_indexes, nexp=args.n_tries)]
 
                     # coverage based on L1 cost (after scaling)
                     coverage[method] += compute_coverage(Xy_train_scaled, Xy_fake_scaled, None) / (args.nexp*args.ngen)
@@ -491,7 +503,7 @@ if __name__ == "__main__":
                 AW[method] += AW_ / args.nexp
 
             # Write results in csv file
-            # Columns: dataset , method , score_W2_train , score_W2_test , R2_real , R2_fake , f1_real , f1_fake, coverage
+            # Columns: dataset , method , score_W1_train , score_W1_test , R2_real , R2_fake , f1_real , f1_fake, coverage
             if method == 'forest_diffusion':
                 method_str = f"{method} n_t={args.n_t} n_t_sampling={args.n_t_sampling} model={args.forest_model} diffusion={args.diffusion_type} duplicate_K={args.duplicate_K} ycond={args.ycond} "
                 if args.forest_model == 'xgboost':
@@ -506,9 +518,9 @@ if __name__ == "__main__":
                 method_str = f"{method} "
             if args.add_missing_data:
                 mask_str = f"MCAR({args.p} {args.imputation_method}) "
-                csv_str = f"{dataset} , " + f"{mask_str}, " + method_str + f", {score_W2_train[method]} , {score_W2_test[method]} , {R2[method]['real']['mean']} , {R2[method]['fake']['mean']} , {R2[method]['both']['mean']} , {f1[method]['real']['mean']} , {f1[method]['fake']['mean']} , {f1[method]['both']['mean']} , {coverage[method]} , {coverage_test[method]} , {percent_bias[method]} , {coverage_rate[method]} , {AW[method]} , {time_taken[method]} "
+                csv_str = f"{dataset} , " + f"{mask_str}, " + method_str + f", {score_W1_train[method]} , {score_W1_test[method]} , {R2[method]['real']['mean']} , {R2[method]['fake']['mean']} , {R2[method]['both']['mean']} , {f1[method]['real']['mean']} , {f1[method]['fake']['mean']} , {f1[method]['both']['mean']} , {coverage[method]} , {coverage_test[method]} , {percent_bias[method]} , {coverage_rate[method]} , {AW[method]} , {f1_class[method]}  , {time_taken[method]} "
             else:
-                csv_str = f"{dataset} , " + method_str + f", {score_W2_train[method]} , {score_W2_test[method]} , {R2[method]['real']['mean']} , {R2[method]['fake']['mean']} , {R2[method]['both']['mean']} , {f1[method]['real']['mean']} , {f1[method]['fake']['mean']} , {f1[method]['both']['mean']} , {coverage[method]} , {coverage_test[method]} , {percent_bias[method]} , {coverage_rate[method]} , {AW[method]} , {time_taken[method]} "
+                csv_str = f"{dataset} , " + method_str + f", {score_W1_train[method]} , {score_W1_test[method]} , {R2[method]['real']['mean']} , {R2[method]['fake']['mean']} , {R2[method]['both']['mean']} , {f1[method]['real']['mean']} , {f1[method]['fake']['mean']} , {f1[method]['both']['mean']} , {coverage[method]} , {coverage_test[method]} , {percent_bias[method]} , {coverage_rate[method]} , {AW[method]} , {f1_class[method]}  , {time_taken[method]} "
             for key in['lin', 'linboost', 'tree', 'treeboost']:
                 csv_str += f", {R2[method]['real'][key]} , {R2[method]['fake'][key]} , {R2[method]['both'][key]} , {f1[method]['real'][key]} , {f1[method]['fake'][key]} , {f1[method]['both'][key]} "
             csv_str += f"\n"

@@ -9,8 +9,9 @@ from lightgbm import LGBMRegressor
 from catboost import CatBoostRegressor
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
-from ForestDiffusion.utils.utils_diffusion import build_data_xt, euler_solve
+from ForestDiffusion.utils.utils_diffusion import build_data_xt, euler_solve, IterForDMatrix, get_xt
 from joblib import delayed, Parallel
+from scipy.special import softmax
 
 ## Class for the flow-matching or diffusion model
 # Categorical features should be numerical (rather than strings), make sure to use x = pd.factorize(x)[0] to make them as such
@@ -24,18 +25,22 @@ class ForestDiffusionModel():
                model='xgboost', # xgboost, random_forest, lgbm, catboost
                diffusion_type='flow', # vp, flow (flow is better, but only vp can be used for imputation)
                max_depth = 7, n_estimators = 100, eta=0.3, # xgboost hyperparameters
-               tree_method='hist', reg_lambda=0.0, reg_alpha=0.0, subsample=1.0, # xgboost hyperparameters
+               tree_method='hist', reg_alpha=0.0, reg_lambda = 0.0, subsample=1.0, # xgboost hyperparameters
                num_leaves=31, # lgbm hyperparameters
                duplicate_K=100, # number of different noise sample per real data sample
                bin_indexes=[], # vector which indicates which column is binary
                cat_indexes=[], # vector which indicates which column is categorical (>=3 categories)
                int_indexes=[], # vector which indicates which column is an integer (ordinal variables such as number of cats in a box)
+               remove_miss=False, # If True, we remove the missing values, this allow us to train the XGBoost using one model for all predictors; otherwise we cannot do it
+               p_in_one=True, # When possible (when there are no missing values), will train the XGBoost using one model for all predictors
                true_min_max_values=None, # Vector of form [[min_x, min_y], [max_x, max_y]]; If  provided, we use these values as the min/max for each variables when using clipping
                gpu_hist=False, # using GPU or not with xgboost
+               n_z=10, # number of noise to use in zero-shot classification
                eps=1e-3, 
                beta_min=0.1, 
                beta_max=8, 
                n_jobs=-1, # cpus used (feel free to limit it to something small, this will leave more cpus per model; for lgbm you have to use n_jobs=1, otherwise it will never finish)
+               n_batch=1, # If >0 use the data iterator with the specified number of batches
                seed=666,
                **xgboost_kwargs): # you can pass extra parameter for xgboost
 
@@ -49,6 +54,16 @@ class ForestDiffusionModel():
     X = X[~obs_to_remove]
     if label_y is not None:
       label_y = label_y[~obs_to_remove]
+
+    # Remove all missing values
+    obs_to_remove = np.isnan(X).any(axis=1)
+    if remove_miss or (obs_to_remove.sum() == 0):
+      X = X[~obs_to_remove]
+      if label_y is not None:
+        label_y = label_y[~obs_to_remove]
+      self.p_in_one = p_in_one # All variables p can be predicted simultaneously
+    else:
+      self.p_in_one = False
 
     int_indexes = int_indexes + bin_indexes # since we round those, we do not need to dummy-code the binary variables
 
@@ -86,6 +101,7 @@ class ForestDiffusionModel():
     self.reg_lambda = reg_lambda
     self.reg_alpha = reg_alpha
     self.subsample = subsample
+    self.n_z = n_z
     self.xgboost_kwargs = xgboost_kwargs
 
     if model == 'random_forest' and np.sum(np.isnan(X1)) > 0:
@@ -99,10 +115,15 @@ class ForestDiffusionModel():
     if diffusion_type == 'vp':
       self.sde = VPSDE(beta_min=self.beta_min, beta_max=self.beta_max, N=n_t)
 
-    if duplicate_K > 1: # we duplicate the data multiple times, so that X0 is k times bigger so we have more room to learn
-      X1 = np.tile(X1, (duplicate_K, 1))
+    self.n_batch = n_batch
+    if self.n_batch == 0: 
+      if duplicate_K > 1: # we duplicate the data multiple times, so that X0 is k times bigger so we have more room to learn
+        X1 = np.tile(X1, (duplicate_K, 1))
 
-    X0 = np.random.normal(size=X1.shape) # Noise data
+      X0 = np.random.normal(size=X1.shape) # Noise data
+
+      # Make Datasets of interpolation
+      X_train, y_train = build_data_xt(X0, X1, n_t=self.n_t, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)
 
     if self.label_y is not None:
       assert np.sum(np.isnan(self.label_y)) == 0 # cannot have missing values in the label (just make a special categorical for nan if you need)
@@ -112,45 +133,104 @@ class ForestDiffusionModel():
       for i in range(len(self.y_uniques)):
         self.mask_y[self.y_uniques[i]] = np.zeros(self.b, dtype=bool)
         self.mask_y[self.y_uniques[i]][self.label_y == self.y_uniques[i]] = True
-        self.mask_y[self.y_uniques[i]] = np.tile(self.mask_y[self.y_uniques[i]], (duplicate_K))
+        if self.n_batch == 0: 
+          self.mask_y[self.y_uniques[i]] = np.tile(self.mask_y[self.y_uniques[i]], (duplicate_K))
     else: # assuming a single unique label 0
       self.y_probs = np.array([1.0])
       self.y_uniques = np.array([0])
       self.mask_y = {} # mask for which observations has a specific value of y
       self.mask_y[0] = np.ones(X1.shape[0], dtype=bool)
 
-    # Make Datasets of interpolation
-    X_train, y_train = build_data_xt(X0, X1, n_t=self.n_t, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)
+    if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
+      rows_per_batch = self.b // self.n_batch
+      batches = [rows_per_batch for i in range(self.n_batch-1)] + [self.b - rows_per_batch*(self.n_batch-1)]
+      X1_splitted = {}
+      for i in self.y_uniques:
+        X1_splitted[i] = np.split(X1[self.mask_y[i], :], batches, axis=0)
 
     # Fit model(s)
     n_steps = n_t
     n_y = len(self.y_uniques) # for each class train a seperate model
+    t_levels = np.linspace(eps, 1, num=n_t)
 
-    if self.n_jobs == 1:
-      self.regr = [[[None for k in range(self.c)] for i in range(n_steps)] for j in self.y_uniques]
-      for i in range(n_steps):
-        for j in range(len(self.y_uniques)): 
-          for k in range(self.c): 
-            self.regr[j][i][k] = self.train_parallel(
-              X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
-              y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], k]
-              )
+    if self.p_in_one:
+      if self.n_jobs == 1:
+        self.regr = [[None for i in range(n_steps)] for j in self.y_uniques]
+        for i in range(n_steps):
+          for j in range(len(self.y_uniques)):
+              if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
+                self.regr[j][i] = self.train_iterator(X1_splitted[j], t=t_levels[i], dim=None, i=i, j=j, k=self.c)
+              else:
+                self.regr[j][i] = self.train_parallel(
+                X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
+                y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], :]
+                )
+      else:
+        if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
+          self.regr = Parallel(n_jobs=self.n_jobs)(delayed(self.train_iterator)(X1_splitted[j], t=t_levels[i], dim=None, i=i, j=j, k=self.c) for i in range(n_steps) for j in self.y_uniques)
+        else:
+          self.regr = Parallel(n_jobs=self.n_jobs)( # using all cpus
+                  delayed(self.train_parallel)(
+                    X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
+                    y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], :]
+                    ) for i in range(n_steps) for j in self.y_uniques
+                  )
+        # Replace fits with doubly loops to make things easier
+        self.regr_ = [[None for i in range(n_steps)] for j in self.y_uniques]
+        current_i = 0
+        for i in range(n_steps):
+          for j in range(len(self.y_uniques)): 
+            self.regr_[j][i] = self.regr[current_i]
+            current_i += 1
+        self.regr = self.regr_
     else:
-      self.regr = Parallel(n_jobs=self.n_jobs)( # using all cpus
-              delayed(self.train_parallel)(
+      if self.n_jobs == 1:
+        self.regr = [[[None for k in range(self.c)] for i in range(n_steps)] for j in self.y_uniques]
+        for i in range(n_steps):
+          for j in range(len(self.y_uniques)): 
+            for k in range(self.c): 
+              if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
+                self.regr[j][i][k] = self.train_iterator(X1_splitted[j], t=t_levels[i], dim=k, i=i, j=j, k=k)
+              else:
+                self.regr[j][i][k] = self.train_parallel(
                 X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
                 y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], k]
-                ) for i in range(n_steps) for j in self.y_uniques for k in range(self.c)
-              )
-      # Replace fits with doubly loops to make things easier
-      self.regr_ = [[[None for k in range(self.c)] for i in range(n_steps)] for j in self.y_uniques]
-      current_i = 0
-      for i in range(n_steps):
-        for j in range(len(self.y_uniques)): 
-          for k in range(self.c): 
-            self.regr_[j][i][k] = self.regr[current_i]
-            current_i += 1
-      self.regr = self.regr_
+                )
+      else:
+        if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
+          self.regr = Parallel(n_jobs=self.n_jobs)(delayed(self.train_iterator)(X1_splitted[j], t=t_levels[i], dim=k, i=i, j=j, k=k) for i in range(n_steps) for j in self.y_uniques for k in range(self.c))
+        else:
+          self.regr = Parallel(n_jobs=self.n_jobs)( # using all cpus
+                  delayed(self.train_parallel)(
+                    X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
+                    y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], k]
+                    ) for i in range(n_steps) for j in self.y_uniques for k in range(self.c)
+                  )
+        # Replace fits with doubly loops to make things easier
+        self.regr_ = [[[None for k in range(self.c)] for i in range(n_steps)] for j in self.y_uniques]
+        current_i = 0
+        for i in range(n_steps):
+          for j in range(len(self.y_uniques)): 
+            for k in range(self.c): 
+              self.regr_[j][i][k] = self.regr[current_i]
+              current_i += 1
+        self.regr = self.regr_
+
+  def train_iterator(self, X1_splitted, t, dim, i=0, j=0, k=0):
+    np.random.seed(self.seed)
+
+    it = IterForDMatrix(X1_splitted, t=t, dim=dim, n_batch=self.n_batch, n_epochs=self.duplicate_K, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)
+    data_iterator = xgb.QuantileDMatrix(it)
+
+    xgb_dict = {'objective': 'reg:squarederror', 'eta': self.eta, 'max_depth': self.max_depth,
+          "reg_lambda": self.reg_lambda, 'reg_alpha': self.reg_alpha, "subsample": self.subsample, "seed": self.seed, 
+          "tree_method": self.tree_method, 'device': 'cuda' if self.gpu_hist else 'cpu', 
+          "device": "cuda" if self.gpu_hist else 'cpu'}
+    for myarg in self.xgboost_kwargs:
+      xgb_dict[myarg] = self.xgboost_kwargs[myarg]
+    out = xgb.train(xgb_dict, data_iterator, num_boost_round=self.n_estimators)
+
+    return out
 
   def train_parallel(self, X_train, y_train):
 
@@ -168,8 +248,11 @@ class ForestDiffusionModel():
     else:
       raise Exception("model value does not exists")
 
-    y_no_miss = ~np.isnan(y_train)
-    out.fit(X_train[y_no_miss, :], y_train[y_no_miss])
+    if len(y_train.shape) == 1:
+      y_no_miss = ~np.isnan(y_train)
+      out.fit(X_train[y_no_miss, :], y_train[y_no_miss])
+    else:
+      out.fit(X_train, y_train)
 
     return out
 
@@ -219,30 +302,49 @@ class ForestDiffusionModel():
     X = big*self.X_max + (1-big)*X
     return X
 
+  def predict_over_c(self, X, i, j, k, dmat, expand=False):
+    if dmat:
+      X_used = xgb.DMatrix(data=X)
+    else:
+      X_used = X
+    if k is None:
+      return self.regr[j][i].predict(X_used)
+    elif expand:
+        return np.expand_dims(self.regr[j][i][k].predict(X_used), axis=1) # [b, 1]
+    else:
+      return self.regr[j][i][k].predict(X_used)
+
   # Return the score-fn or ode-flow output
-  def my_model(self, t, y, mask_y=None):
-    # y is [b*c]
-    c = self.c
-    b = y.shape[0] // c
-    X = y.reshape(b, c) # [b, c]
+  def my_model(self, t, y, mask_y=None, dmat=False, unflatten=True):
+    if unflatten:
+      # y is [b*c]
+      c = self.c
+      b = y.shape[0] // c
+      X = y.reshape(b, c) # [b, c]
+    else:
+      X = y
 
     # Output
     out = np.zeros(X.shape) # [b, c]
     i = int(round(t*(self.n_t-1)))
     for j, label in enumerate(self.y_uniques):
       if mask_y[label].sum() > 0:
-        for k in range(self.c):
-          out[mask_y[label], k] = self.regr[j][i][k].predict(X[mask_y[label], :])
+        if self.p_in_one:
+          out[mask_y[label], :] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=None, dmat=dmat)
+        else:
+          for k in range(self.c):
+            out[mask_y[label], k] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=k, dmat=dmat)
 
     if self.diffusion_type == 'vp':
       alpha_, sigma_ = self.sde.marginal_prob_coef(X, t)
       out = - out / sigma_
-    out = out.reshape(-1) # [b*c]
+    if unflatten:
+      out = out.reshape(-1) # [b*c]
     return out
 
   # For imputation, we only give out and receive the missing values while ensuring consistency for the non-missing values
   # y0 is prior data, X_miss is real data
-  def my_model_imputation(self, t, y, X_miss, sde=None, mask_y=None):
+  def my_model_imputation(self, t, y, X_miss, sde=None, mask_y=None, dmat=False):
 
     y0 = np.random.normal(size=X_miss.shape) # Noise data
     b, c = y0.shape
@@ -261,8 +363,11 @@ class ForestDiffusionModel():
     i = int(round(t*(self.n_t-1)))
     for j, label in enumerate(self.y_uniques):
       if mask_y[label].sum() > 0:
-        for k in range(self.c):
-          out[mask_y[label], k] = self.regr[j][i][k].predict(X[mask_y[label], :])
+        if self.p_in_one:
+          out[mask_y[label], :] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=None, dmat=dmat)
+        else:
+          for k in range(self.c):
+            out[mask_y[label], k] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=k, dmat=dmat)
 
     if self.diffusion_type == 'vp':
       alpha_, sigma_ = self.sde.marginal_prob_coef(X, t)
@@ -284,7 +389,7 @@ class ForestDiffusionModel():
     for i in range(len(self.y_uniques)):
       mask_y[self.y_uniques[i]] = np.zeros(y0.shape[0], dtype=bool)
       mask_y[self.y_uniques[i]][label_y == self.y_uniques[i]] = True
-    my_model = partial(self.my_model, mask_y=mask_y)
+    my_model = partial(self.my_model, mask_y=mask_y, dmat=self.n_batch > 0)
 
     if self.diffusion_type == 'vp':
       sde = VPSDE(beta_min=self.beta_min, beta_max=self.beta_max, N=self.n_t if n_t is None else n_t)
@@ -325,7 +430,7 @@ class ForestDiffusionModel():
         mask_y[self.y_uniques[i]] = np.zeros(X.shape[0], dtype=bool)
         mask_y[self.y_uniques[i]][label_y == self.y_uniques[i]] = True
 
-    my_model_imputation = partial(self.my_model_imputation, X_miss=X, sde=sde, mask_y=mask_y)
+    my_model_imputation = partial(self.my_model_imputation, X_miss=X, sde=sde, mask_y=mask_y, dmat=self.n_batch > 0)
 
     for i in range(k):
       y0 = np.random.normal(size=X.shape)
@@ -347,3 +452,77 @@ class ForestDiffusionModel():
       else:
         imputed_data = np.concatenate((imputed_data, np.expand_dims(solution, axis=0)), axis=0)
     return imputed_data[0] if k==1 else imputed_data
+
+  # Zero-shot classification of one batch
+  def zero_shot_classification(self, x, n_t=10, n_z=10):
+    assert self.label_y is not None # must have label conditioning to work
+
+    h = 1 / n_t
+    num_classes = len(self.y_uniques)
+    L2_dist = []
+    for i in range(num_classes): # for each class
+
+      # Class conditioning
+      mask_y = {}
+      for k in range(len(self.y_uniques)):
+        if k == i:
+          mask_y[self.y_uniques[k]] = np.ones(x.shape[0], dtype=bool)
+        else:
+          mask_y[self.y_uniques[k]] = np.zeros(x.shape[0], dtype=bool)
+
+      L2_dist_ = []
+      for k in range(n_z): # monte-carlo over multiple noises
+        t = 0
+        for j in range(n_t-1): # averaging over multiple noise levels [t=1/n, ... (n-1)/n]
+          t = t + h
+          np.random.seed(10000*k + j)
+          y0 = np.random.normal(size=x.shape)
+          xt = get_xt(x1=x, t=t, x0=y0, dim=None, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)[0]
+          pred_ = self.my_model(t=t, y=xt, mask_y=mask_y, unflatten=False, dmat=self.n_batch > 0)
+          if self.diffusion_type == 'flow':
+            x0 = x - pred_ # x0 = x1 - (x1 - x0)
+          elif self.diffusion_type == 'vp':
+            x0 = pred_ # x0
+          L2_dist_ += [np.expand_dims(np.sum((x0 - y0) ** 2, axis=1), axis=0)] # [1, b]
+      L2_dist += [np.concatenate(L2_dist_, axis=0)] # [n_z*n_t, b]
+
+    # Based on absolute
+    L2_abs = []
+    for i in range(num_classes): # for each class
+      L2_abs += [np.expand_dims(np.mean(L2_dist[i], axis=0), axis=0)] # [1, b]
+    L2_abs = np.concatenate(L2_abs, axis=0) # [c, b]
+    prob_avg = softmax(-L2_abs, axis=0) # [b]
+    most_likely_class_avg = np.argmin(L2_abs, axis=0) # [b]
+    return self.y_uniques[most_likely_class_avg], prob_avg
+
+  # Zero-shot classification using https://diffusion-classifier.github.io/static/docs/DiffusionClassifier.pdf
+  # Return the absolute and relative accuracies
+  def predict(self, X, n_t=None, n_z=None):
+    if n_t is None:
+      n_t = self.n_t
+    if n_z is None:
+      n_z = self.n_z
+
+    # Data transformation (assuming we get the raw data)
+    if len(self.cat_indexes) > 0:
+      X, _, _ = self.dummify(X) # dummy-coding for categorical variables
+    X = self.scaler.transform(X)
+
+    most_likely_class_avg, prob_avg = self.zero_shot_classification(X, n_t=n_t, n_z=n_z)
+
+    return most_likely_class_avg
+
+  def predict_proba(self, X, n_t=None, n_z=None):
+    if n_t is None:
+      n_t = self.n_t
+    if n_z is None:
+      n_z = self.n_z
+
+    # Data transformation (assuming we get the raw data)
+    if len(self.cat_indexes) > 0:
+      X, _, _ = self.dummify(X) # dummy-coding for categorical variables
+    X = self.scaler.transform(X)
+
+    most_likely_class_avg, prob_avg = self.zero_shot_classification(X, n_t=n_t, n_z=n_z)
+
+    return prob_avg

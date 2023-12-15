@@ -85,6 +85,45 @@ def test_on_multiple_models(X_train, y_train, X_test, y_test, cat_indexes=[], cl
 
 	return {'mean': f1_score_mean, 'lin': f1_score_lin, 'linboost': f1_score_linboost, 'tree': f1_score_tree, 'treeboost': f1_score_treeboost}, {'mean': R2_score_mean, 'lin': R2_score_lin, 'linboost': R2_score_linboost, 'tree': R2_score_tree, 'treeboost': R2_score_treeboost}
 
+# Same as above, but learning a classifier to classify real from fake data
+def test_on_multiple_models_classifier(X_train_real, X_train_fake, X_test_fake, cat_indexes=[], nexp=5):
+
+	simplefilter("ignore", category=ConvergenceWarning)
+
+	f1_score_lin = 0.0
+	f1_score_linboost = 0.0
+	f1_score_tree = 0.0
+	f1_score_treeboost = 0.0
+
+	# Dummify categorical variables (>=3 categories)
+	n = X_train_real.shape[0]
+	if len(cat_indexes) > 0:
+		X_comb, _, _ = dummify(np.concatenate((X_train_real, X_train_fake, X_test_fake), axis=0), cat_indexes, drop_first=False)
+	else:
+		X_comb = np.concatenate((X_train_real, X_train_fake, X_test_fake), axis=0)
+	X_train_real_fake_ = X_comb[0:(2*n),:]
+	X_test_fake_ = X_comb[(2*n):,:]
+	y_train_real_fake = np.concatenate((np.ones(n), np.zeros(n)), axis=0)
+	y_test_fake = np.zeros(n)
+
+	for i in range(nexp):
+
+		y_pred = LogisticRegression(penalty=None, solver='lbfgs', max_iter=500, random_state=i).fit(X_train_real_fake_, y_train_real_fake).predict(X_test_fake_)
+		f1_score_lin += f1_score(y_test_fake, y_pred, average='macro') / nexp
+
+		y_pred = AdaBoostClassifier(random_state=i).fit(X_train_real_fake_, y_train_real_fake).predict(X_test_fake_)
+		f1_score_linboost += f1_score(y_test_fake, y_pred, average='macro') / nexp
+
+		y_pred = RandomForestClassifier(max_depth=28, random_state=i).fit(X_train_real_fake_, y_train_real_fake).predict(X_test_fake_)
+		f1_score_tree += f1_score(y_test_fake, y_pred, average='macro') / nexp
+
+		y_pred = xgb.XGBClassifier(reg_lambda=0.0, random_state=i).fit(X_train_real_fake_, y_train_real_fake).predict(X_test_fake_)
+		f1_score_treeboost += f1_score(y_test_fake, y_pred, average='macro') / nexp
+
+	f1_score_mean = (f1_score_lin + f1_score_linboost + f1_score_tree + f1_score_treeboost) / 4
+
+	return f1_score_mean
+
 # Metrics from https://stefvanbuuren.name/fimd/sec-evaluation.html
 # Raw bias and coverage rate (truth is considered to be the regression result from training on the oracle non-missing data)
 def test_imputation_regression(X_oracle, y_oracle, X_fake, y_fake, cat_indexes=[], type_model='regression'):

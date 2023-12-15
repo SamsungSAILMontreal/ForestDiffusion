@@ -46,14 +46,6 @@ class TaskType(enum.Enum):
         return self.value
 
 
-class Timer(zero.Timer):
-    @classmethod
-    def launch(cls) -> 'Timer':
-        timer = cls()
-        timer.run()
-        return timer
-
-
 def update_training_log(training_log, data, metrics):
     def _update(log_part, data_part):
         for k, v in data_part.items():

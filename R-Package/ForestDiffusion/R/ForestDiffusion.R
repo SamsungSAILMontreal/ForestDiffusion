@@ -323,17 +323,19 @@ ForestDiffusion.clean_dummy_data = function(object, X){
     prefixes_suffixes = strsplit(names(X),'\\.')
     prefixes = vector("character", NCOL(X))
     for (i in 1:NCOL(X)){
-      prefixes = prefixes_suffixes[[i]][1]
+      prefixes[i] = prefixes_suffixes[[i]][1]
     }
     unique_prefixes = unique(prefixes) # uniques prefixes
     for (i in 1:length(unique_prefixes)){
-      names_with_prefix = names(X)[grepl(paste0(unique_prefixes[i],'.'), names(X))]
-      cat_vars = cbind(rep(0.5, NROW(X)), X[, names_with_prefix])
-      max_index = max.col(cat_vars) # argmax of -1, -1, 0 is 0; so as long as they are below 0 we choose the implicit-final class
-      X[,names_with_prefix[1]] = max_index # the argmax
-      name_no_suffix = strsplit(names(X)[names(X)==names_with_prefix[1]],'\\.')[[1]][1] # ex: cartype.a -> cartype
-      names(X)[names(X) == names_with_prefix[1]] = name_no_suffix
-      X = X[, !grepl(paste0(unique_prefixes[i],'.'), names(X))] # ex: cartype cartype.b cartype.c; we remove cartype.b cartype.c
+        names_with_prefix = names(X)[grepl(paste0(unique_prefixes[i],'.'), names(X))]
+        if (length(names_with_prefix) > 0){
+          cat_vars = cbind(rep(0.5, NROW(X)), X[, names_with_prefix])
+          max_index = max.col(cat_vars) # argmax of -1, -1, 0 is 0; so as long as they are below 0 we choose the implicit-final class
+          X[,names_with_prefix[1]] = max_index # the argmax
+          name_no_suffix = strsplit(names(X)[names(X)==names_with_prefix[1]],'\\.')[[1]][1] # ex: cartype.a -> cartype
+          names(X)[names(X) == names_with_prefix[1]] = name_no_suffix
+          X = X[, !grepl(paste0(unique_prefixes[i],'.'), names(X))] # ex: cartype cartype.b cartype.c; we remove cartype.b cartype.c
+        }
     }
   }
   return(X)
