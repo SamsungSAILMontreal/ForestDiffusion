@@ -12,11 +12,11 @@ This repo contains the official implementation of the paper [Generating and Impu
 
 **2023-12-15 update**: 
 
-1. Version 1.0.5 of the Python library now has the option to use an XGBoost data iterator (now used by default); this allows efficient scaling to massive-scale datasets without requiring data duplication! With this new feature, we were able to train a ForestFlow on the massive Higgs boson dataset ([n,d]=[11M,21]) in around 2 hours. See the memory section below for more details on how to use it. 
+1. There is a new option to use an XGBoost data iterator (now used by default); this allows memory-efficient scaling to massive-scale datasets without requiring data duplication! With this new feature, we were able to train a ForestFlow on the massive Higgs boson dataset (21 features, 11M data points) in around 1.5 hours. See the memory section below for more details on how to use it. 
 
-2. Version 1.0.5 of the Python library now includes [zero-shot classification](https://arxiv.org/abs/2303.16203). You can now use your pre-trained ForestFlow or ForestDiffusion model to classify data! This option is only usable when label_y is provided. There is evidence that [generative models make better classifiers](https://arxiv.org/abs/2309.16779). See the zero-shot classification section below for more details on how to use it. 
+2. You can now use your pre-trained ForestDiffusionModel to classify data using [zero-shot classification](https://arxiv.org/abs/2303.16203)! This option is only available when label_y is provided. There is evidence that [generative models make better classifiers](https://arxiv.org/abs/2309.16779). See the zero-shot classification section below for more details on how to use it. 
 
-4. We did a few bug fixes in script_generation, script_imputation, and the R code. We also have a new metric from classifiers predicting real from fake data.
+3. We did a few bug fixes in script_generation, script_imputation, and the R code. We also have a new metric based on classifiers trying to distinguish real from fake data.
 
 **2023-11-23 update**: ForestFlow is now part of the wonderful TorchCFM (Conditional Flow Matching) library. This library is the most extensive library that exists on flow-matching! 😻 It now contains an [in-depth notebook](https://github.com/atong01/conditional-flow-matching/tree/main/examples/tabular) showing how to manually implement the ForestFlow method step by step. If you want to understand or even build upon our method 🙌, I highly recommend checking it out! 
 
