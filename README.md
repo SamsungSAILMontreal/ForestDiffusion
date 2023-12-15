@@ -80,6 +80,8 @@ python script_imputation.py ${myargs}
 
 As always, note that from the code refactoring and cleaning, the randomness will be different, so expect to get slightly different numbers than the exact ones from the paper.
 
+We also provide the code for the complete replication of the LaTex tables and plots. This makes it easy to try your own method or add a dataset and obtain a new results table and plots. The output files with all the results and the R scripts to make the tables from the output files are in the *Results* folder. The R code could be cleaner, but adding your own method or datasets should be relatively straightforward. Once the tables are done, you can then make the plots using this [notebook](https://colab.research.google.com/drive/1T_S4xk7hb4EoL_BJJmKNMLOzJMtweqC8?usp=sharing).
+
 
 ## For regular usage on your dataset
 
