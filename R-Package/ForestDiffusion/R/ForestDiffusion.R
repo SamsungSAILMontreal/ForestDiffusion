@@ -148,12 +148,14 @@ ForestDiffusion = function(X,
   int_indexes = c(int_indexes, bin_indexes) # since we round those
 
   # Processing to make all categorical variables as numeric and store the levels so we can easily revert them back to their original values
+  cat_labels = vector("list", length(c(cat_indexes, bin_indexes)))
   cat_levels = vector("list", length(c(cat_indexes, bin_indexes)))
   j = 1
   for (i in sort(c(cat_indexes, bin_indexes))){ # from smallest index to largest index
     x_factor = factor(X[,i])
-    cat_levels[[j]] = levels(x_factor)
+    cat_labels[[j]] = levels(x_factor)
     X[,i] =  as.numeric(x_factor)
+    cat_levels[[j]] = unique(X[,i])
     j = j + 1
   }
   # revert using factor(as.numeric(y), labels=levels(y))
@@ -298,7 +300,7 @@ ForestDiffusion = function(X,
     c=c, b=b,
     beta_0=beta_min, beta_1=beta_max, eps=eps,
     flow=flow,
-    bin_indexes=bin_indexes, cat_levels=cat_levels, n_t=n_t, y_uniques=y_uniques, mask_y=mask_y, y_probs=y_probs,
+    bin_indexes=bin_indexes, cat_levels=cat_levels, cat_labels=cat_labels, n_t=n_t, y_uniques=y_uniques, mask_y=mask_y, y_probs=y_probs,
     label_y=label_y, name_y=name_y,
     X1=X)
   class(result) = 'ForestDiffusion'
@@ -360,7 +362,7 @@ ForestDiffusion.clip_extremes_clean = function(object, X){
   #For all binary/categorical variable, we must revert to factors with the correct label
   j = 1
   for (i in sort(c(object$bin_indexes, object$cat_indexes))){
-    X[,i] = factor(X[,i], labels=object$cat_levels[[j]])
+    X[,i] = factor(X[,i], levels=object$cat_levels[[j]], labels=object$cat_labels[[j]])
     j = j + 1
   }
 
