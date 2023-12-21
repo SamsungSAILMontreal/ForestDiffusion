@@ -153,9 +153,14 @@ ForestDiffusion = function(X,
   j = 1
   for (i in sort(c(cat_indexes, bin_indexes))){ # from smallest index to largest index
     x_factor = factor(X[,i])
-    cat_labels[[j]] = levels(x_factor)
+    
+    unique_labels = unique(X[,i])
+    cat_labels[[j]] = unique_labels[!is.na(unique_labels)]
+
     X[,i] =  as.numeric(x_factor)
-    cat_levels[[j]] = unique(X[,i])
+
+    unique_levels = unique(X[,i])
+    cat_levels[[j]] = unique_levels[!is.na(unique_levels)] # remove NA from uniques
     j = j + 1
   }
   # revert using factor(as.numeric(y), labels=levels(y))
@@ -362,6 +367,9 @@ ForestDiffusion.clip_extremes_clean = function(object, X){
   #For all binary/categorical variable, we must revert to factors with the correct label
   j = 1
   for (i in sort(c(object$bin_indexes, object$cat_indexes))){
+    #print(X[,i])
+    #print(object$cat_levels[[j]])
+    #print(object$cat_labels[[j]])
     X[,i] = factor(X[,i], levels=object$cat_levels[[j]], labels=object$cat_labels[[j]])
     j = j + 1
   }
