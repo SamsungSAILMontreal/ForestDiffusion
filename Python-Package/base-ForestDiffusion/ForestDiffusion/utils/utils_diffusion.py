@@ -32,8 +32,6 @@ def build_data_xt(x0, x1, n_t=101, diffusion_type='flow', eps=1e-3, sde=None):
 
   return X, y
 
-#### Below is for Flow-Matching Sampling ####
-
 # Euler solver
 def euler_solve(y0, my_model, N=101):
   h = 1 / (N-1)
@@ -109,16 +107,3 @@ class IterForDMatrix(xgb.core.DataIter):
       input_data(data=x_t, label=y)
     self.it += 1
     return 1
-
-#### Below is for Flow-Matching Sampling ####
-
-# Euler solver
-def euler_solve(y0, my_model, N=101):
-  h = 1 / (N-1)
-  y = y0
-  t = 0
-  # from t=0 to t=1
-  for i in range(N-1):
-    y = y + h*my_model(t=t, y=y)
-    t = t + h
-  return y

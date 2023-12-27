@@ -342,40 +342,6 @@ class ForestDiffusionModel():
       out = out.reshape(-1) # [b*c]
     return out
 
-  # For imputation, we only give out and receive the missing values while ensuring consistency for the non-missing values
-  # y0 is prior data, X_miss is real data
-  def my_model_imputation(self, t, y, X_miss, sde=None, mask_y=None, dmat=False):
-
-    y0 = np.random.normal(size=X_miss.shape) # Noise data
-    b, c = y0.shape
-
-    if self.diffusion_type == 'vp':
-      assert sde is not None
-      mean, std = sde.marginal_prob(X_miss, t)
-      X = mean + std*y0 # following the sde
-    else:
-      X = t*X_miss + (1-t)*y0 # interpolation based on ground-truth for non-missing data
-    mask_miss = np.isnan(X_miss)
-    X[mask_miss] = y # replace missing data by y(t)
-
-    # Output
-    out = np.zeros(X.shape) # [b, c]
-    i = int(round(t*(self.n_t-1)))
-    for j, label in enumerate(self.y_uniques):
-      if mask_y[label].sum() > 0:
-        if self.p_in_one:
-          out[mask_y[label], :] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=None, dmat=dmat)
-        else:
-          for k in range(self.c):
-            out[mask_y[label], k] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=k, dmat=dmat)
-
-    if self.diffusion_type == 'vp':
-      alpha_, sigma_ = self.sde.marginal_prob_coef(X, t)
-      out = - out / sigma_
-
-    out = out[mask_miss] # only return the missing data output
-    out = out.reshape(-1) # [-1]
-    return out
 
   # Generate new data by solving the reverse ODE/SDE
   def generate(self, batch_size=None, n_t=None):
@@ -430,17 +396,13 @@ class ForestDiffusionModel():
         mask_y[self.y_uniques[i]] = np.zeros(X.shape[0], dtype=bool)
         mask_y[self.y_uniques[i]][label_y == self.y_uniques[i]] = True
 
-    my_model_imputation = partial(self.my_model_imputation, X_miss=X, sde=sde, mask_y=mask_y, dmat=self.n_batch > 0)
+    my_model = partial(self.my_model, mask_y=mask_y, dmat=self.n_batch > 0)
 
     for i in range(k):
       y0 = np.random.normal(size=X.shape)
-
-      mask_miss = np.isnan(X)
-      y0_miss = y0[mask_miss].reshape(-1)
-      solution = copy.deepcopy(X) # Solution start with dataset which contains some missing values
       if self.diffusion_type == 'vp':
-        ode_solved = get_pc_sampler(my_model_imputation, sde=sde, denoise=True, repaint=repaint)(y0_miss, r=r, j=int(math.ceil(j*n_t)))
-        solution[mask_miss] = ode_solved # replace missing values with imputed values
+        ode_solved = get_pc_sampler(my_model, sde=sde, denoise=True, repaint=repaint, eps=self.eps, X_miss=X.reshape(-1))(y0.reshape(-1), r=r, j=int(math.ceil(j*n_t)))
+      solution = ode_solved.reshape(y0.shape[0], self.c) # [b, c]
       solution = self.unscale(solution)
       solution = self.clean_onehot_data(solution)
       solution = self.clip_extremes(solution)

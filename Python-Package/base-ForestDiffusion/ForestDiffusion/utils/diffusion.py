@@ -144,11 +144,13 @@ def shared_predictor_update_fn(x, t, h=None, sde=None, score_fn=None,):
 
 # VP sampler
 
-def get_pc_sampler(score_fn, sde, denoise=True, eps=1e-3, repaint=False):
+def get_pc_sampler(score_fn, sde, denoise=True, eps=1e-3, repaint=False, X_miss=None):
 
   predictor_update_fn = functools.partial(shared_predictor_update_fn,
                                           sde=sde,
                                           score_fn=score_fn)
+  if X_miss is not None:
+    mask_nomiss = ~np.isnan(X_miss)
 
   def pc_sampler(prior, r=5, j=5):
     # Initial sample
@@ -160,9 +162,18 @@ def get_pc_sampler(score_fn, sde, denoise=True, eps=1e-3, repaint=False):
     for i in range(N):
       x, x_mean = predictor_update_fn(x, timesteps[i], h[i])
 
+      if X_miss is not None: # Replace non-missing by ground truth
+        y0 = np.random.normal(size=X_miss[mask_nomiss].shape) # Noise data
+        mean, std = sde.marginal_prob(X_miss[mask_nomiss], h[i])
+        x_real = mean + std*y0 # following the sde
+        x[mask_nomiss] = x_real # replace missing data by y(t)
+
     if denoise: # Tweedie formula
       u, std = sde.marginal_prob(x, eps)
       x = x + (std ** 2)*score_fn(y=x, t=eps)
+
+    if X_miss is not None: # Replace non-missing by ground truth
+      x[mask_nomiss] = X_miss[mask_nomiss] # replace missing data by y(t)
 
     return x
 
@@ -177,6 +188,13 @@ def get_pc_sampler(score_fn, sde, denoise=True, eps=1e-3, repaint=False):
     i = 0
     while i < N:
       x, x_mean = predictor_update_fn(x, timesteps[i], h[i])
+
+      if X_miss is not None: # Replace non-missing by ground truth
+        y0 = np.random.normal(size=X_miss[mask_nomiss].shape) # Noise data
+        mean, std = sde.marginal_prob(X_miss[mask_nomiss], h[i])
+        x_real = mean + std*y0 # following the sde
+        x[mask_nomiss] = x_real # replace missing data by y(t)
+
       if i_repaint < r-1 and (i+1) % j == 0: # we did j iterations, but not enough repaint, we must repaint again
         # Going backward in time; using Euler-Maruyama
         z = sde.prior_sampling(x.shape)
@@ -194,6 +212,8 @@ def get_pc_sampler(score_fn, sde, denoise=True, eps=1e-3, repaint=False):
     if denoise: # Tweedie formula
       u, std = sde.marginal_prob(x, eps)
       x = x + (std ** 2)*score_fn(y=x, t=eps)
+    if X_miss is not None: # Replace non-missing by ground truth
+      x[mask_nomiss] = X_miss[mask_nomiss] # replace missing data by y(t)
 
     return x
 
@@ -201,4 +221,3 @@ def get_pc_sampler(score_fn, sde, denoise=True, eps=1e-3, repaint=False):
     return pc_sampler_repaint
   else:
     return pc_sampler
-
