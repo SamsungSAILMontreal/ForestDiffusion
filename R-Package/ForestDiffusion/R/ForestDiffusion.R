@@ -155,19 +155,22 @@ ForestDiffusion = function(X,
   j = 1
   for (i in sort(c(cat_indexes, bin_indexes))){ # from smallest index to largest index
 
-    if (is.factor(X[,i])){ 
+    if (is.factor(X[,i])){ # if its already a factor, order of unique and levels may be different, care must be taken
       cat_labels[[j]] = levels(X[,i])
-      x_factor = X[,i]
+      X_numeric =  as.numeric(X[,i])
+      cat_levels[[j]] = c()
+      for (my_level in cat_labels[[j]]) cat_levels[[j]] = c(cat_levels[[j]], X_numeric[X[,i]==my_level & !is.na(X[,i])][1]) # get the actual value for a given level
+      X[,i] =  X_numeric
     }
     else{
       x_factor = factor(X[,i])
       unique_labels = unique(X[,i])
       cat_labels[[j]] = unique_labels[!is.na(unique_labels)]
-    }
 
-    X[,i] =  as.numeric(x_factor)
-    unique_levels = unique(X[,i])
-    cat_levels[[j]] = unique_levels[!is.na(unique_levels)] # remove NA from uniques
+      X[,i] =  as.numeric(x_factor)
+      unique_levels = unique(X[,i])
+      cat_levels[[j]] = unique_levels[!is.na(unique_levels)] # remove NA from uniques
+    }
     j = j + 1
   }
   # revert using factor(as.numeric(y), labels=levels(y))
