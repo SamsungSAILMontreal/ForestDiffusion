@@ -164,6 +164,7 @@ ForestDiffusion = function(X,
     cat_levels[[j]] = unique_levels[!is.na(unique_levels)] # remove NA from uniques
     j = j + 1
   }
+  is_ordered = sapply(Xy_fake,is.ordered)
   # revert using factor(as.numeric(y), labels=levels(y))
 
   # min and max 
@@ -306,7 +307,7 @@ ForestDiffusion = function(X,
     c=c, b=b,
     beta_0=beta_min, beta_1=beta_max, eps=eps,
     flow=flow,
-    bin_indexes=bin_indexes, cat_levels=cat_levels, cat_labels=cat_labels, n_t=n_t, y_uniques=y_uniques, mask_y=mask_y, y_probs=y_probs,
+    bin_indexes=bin_indexes, cat_levels=cat_levels, cat_labels=cat_labels, is_ordered=is_ordered, n_t=n_t, y_uniques=y_uniques, mask_y=mask_y, y_probs=y_probs,
     label_y=label_y, name_y=name_y,
     X1=X)
   class(result) = 'ForestDiffusion'
@@ -368,10 +369,8 @@ ForestDiffusion.clip_extremes_clean = function(object, X){
   #For all binary/categorical variable, we must revert to factors with the correct label
   j = 1
   for (i in sort(c(object$bin_indexes, object$cat_indexes))){
-    #print(X[,i])
-    #print(object$cat_levels[[j]])
-    #print(object$cat_labels[[j]])
-    X[,i] = factor(X[,i], levels=object$cat_levels[[j]], labels=object$cat_labels[[j]])
+    X[,i] = factor(X[,i], levels=object$cat_levels[[j]], labels=object$cat_labels[[j]], ordered = object$is_ordered[i])
+    is_ordered
     j = j + 1
   }
 
