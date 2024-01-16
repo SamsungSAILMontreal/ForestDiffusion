@@ -157,6 +157,7 @@ ForestDiffusion = function(X,
 
     if (is.factor(X[,i])){ 
       cat_labels[[j]] = levels(X[,i])
+      x_factor = X[,i]
     }
     else{
       x_factor = factor(X[,i])
