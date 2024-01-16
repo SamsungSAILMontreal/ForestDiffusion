@@ -116,6 +116,7 @@ ForestDiffusion = function(X,
                seed=NULL){
 
   if (!is.null(seed)) set.seed(seed)
+  if (n_t <= 1) n_t = 2 # must have at least 2 time points
 
   X = data.frame(X)
 
@@ -334,14 +335,14 @@ ForestDiffusion.clean_dummy_data = function(object, X){
     }
     unique_prefixes = unique(prefixes) # uniques prefixes
     for (i in 1:length(unique_prefixes)){
-        names_with_prefix = names(X)[grepl(paste0(unique_prefixes[i],'.'), names(X))]
+        names_with_prefix = names(X)[grepl(paste0(unique_prefixes[i],'.'), names(X), fixed=TRUE)]
         if (length(names_with_prefix) > 0){
           cat_vars = cbind(rep(0.5, NROW(X)), X[, names_with_prefix])
           max_index = max.col(cat_vars) # argmax of -1, -1, 0 is 0; so as long as they are below 0 we choose the implicit-final class
           X[,names_with_prefix[1]] = max_index # the argmax
           name_no_suffix = strsplit(names(X)[names(X)==names_with_prefix[1]],'\\.')[[1]][1] # ex: cartype.a -> cartype
           names(X)[names(X) == names_with_prefix[1]] = name_no_suffix
-          X = X[, !grepl(paste0(unique_prefixes[i],'.'), names(X))] # ex: cartype cartype.b cartype.c; we remove cartype.b cartype.c
+          X = X[, !grepl(paste0(unique_prefixes[i],'.'), names(X), fixed=TRUE)] # ex: cartype cartype.b cartype.c; we remove cartype.b cartype.c
         }
     }
   }
