@@ -158,8 +158,9 @@ ForestDiffusion = function(X,
     if (is.factor(X[,i])){ # if its already a factor, order of unique and levels may be different, care must be taken
       cat_labels[[j]] = levels(X[,i])
       X_numeric =  as.numeric(X[,i])
-      cat_levels[[j]] = c()
-      for (my_level in cat_labels[[j]]) cat_levels[[j]] = c(cat_levels[[j]], X_numeric[X[,i]==my_level & !is.na(X[,i])][1]) # get the actual value for a given level
+      new_levels = c()
+      for (my_label in cat_labels[[j]]) new_levels = c(new_levels, X_numeric[X[,i]==my_label & !is.na(X[,i])][1]) # get the actual value for a given level
+      cat_levels[[j]] = new_levels
       X[,i] =  X_numeric
     }
     else{
