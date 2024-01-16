@@ -370,7 +370,6 @@ ForestDiffusion.clip_extremes_clean = function(object, X){
   j = 1
   for (i in sort(c(object$bin_indexes, object$cat_indexes))){
     X[,i] = factor(X[,i], levels=object$cat_levels[[j]], labels=object$cat_labels[[j]], ordered = object$is_ordered[i])
-    is_ordered
     j = j + 1
   }
 
