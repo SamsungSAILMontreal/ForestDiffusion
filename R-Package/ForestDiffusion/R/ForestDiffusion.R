@@ -164,7 +164,7 @@ ForestDiffusion = function(X,
     cat_levels[[j]] = unique_levels[!is.na(unique_levels)] # remove NA from uniques
     j = j + 1
   }
-  is_ordered = sapply(Xy_fake,is.ordered)
+  is_ordered = sapply(X,is.ordered)
   # revert using factor(as.numeric(y), labels=levels(y))
 
   # min and max 
