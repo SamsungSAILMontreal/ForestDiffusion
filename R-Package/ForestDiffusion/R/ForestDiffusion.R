@@ -151,6 +151,7 @@ ForestDiffusion = function(X,
   # Processing to make all categorical variables as numeric and store the levels so we can easily revert them back to their original values
   cat_labels = vector("list", length(c(cat_indexes, bin_indexes)))
   cat_levels = vector("list", length(c(cat_indexes, bin_indexes)))
+  is_ordered = sapply(X,is.ordered)
   j = 1
   for (i in sort(c(cat_indexes, bin_indexes))){ # from smallest index to largest index
     x_factor = factor(X[,i])
@@ -164,7 +165,6 @@ ForestDiffusion = function(X,
     cat_levels[[j]] = unique_levels[!is.na(unique_levels)] # remove NA from uniques
     j = j + 1
   }
-  is_ordered = sapply(X,is.ordered)
   # revert using factor(as.numeric(y), labels=levels(y))
 
   # min and max 
