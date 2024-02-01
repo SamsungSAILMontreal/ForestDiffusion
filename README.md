@@ -1,6 +1,6 @@
 # Tabular Diffusion and Flow-Matching
 
-This repo contains the official implementation of the paper [Generating and Imputing Tabular Data via Diffusion and Flow-based XGBoost Models](https://arxiv.org/abs/2309.09968). To make it easily accessible, we release our code through a Python library and an R package. See also our [blog post](https://ajolicoeur.wordpress.com/2023/09/19/xgboost-diffusion/) for more information.
+This repo contains the official implementation of the AISTATS 2024 paper [Generating and Imputing Tabular Data via Diffusion and Flow-based XGBoost Models](https://arxiv.org/abs/2309.09968). To make it easily accessible, we release our code through a Python library and an R package. See also our [blog post](https://ajolicoeur.wordpress.com/2023/09/19/xgboost-diffusion/) for more information.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/iris_cropped.png" alt="Iris generation"/>
