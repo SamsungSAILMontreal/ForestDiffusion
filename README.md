@@ -1,6 +1,13 @@
 # Tabular Diffusion and Flow-Matching (AISTATS 2024)
 
 This repo contains the official implementation of the AISTATS 2024 paper [Generating and Imputing Tabular Data via Diffusion and Flow-based XGBoost Models](https://arxiv.org/abs/2309.09968). To make it easily accessible, we release our code through a Python library and an R package. See also our [blog post](https://ajolicoeur.wordpress.com/2023/09/19/xgboost-diffusion/) for more information.
+<div align="center">
+
+[![Forest Diffusion paper](https://img.shields.io/badge/paper-arxiv.2309.09968-B31B1B.svg)](https://arxiv.org/abs/2309.09968)
+[![Downloads](https://static.pepy.tech/badge/forestdiffusion)](https://pepy.tech/project/forestdiffusion)
+[![Downloads](https://static.pepy.tech/badge/forestdiffusion/month)](https://pepy.tech/project/forestdiffusion)
+
+</div>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/iris_cropped.png" alt="Iris generation"/>
