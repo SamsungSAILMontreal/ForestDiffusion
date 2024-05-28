@@ -147,7 +147,7 @@ We list the important hyperparameters below, their default values, and how to tu
 ```
 duplicate_K = 100 # number of noise per sample (or the number of times the rows of the dataset are duplicated when n_batch=0); should be as high as possible; higher values increase the memory demand when n_batch=0
 n_batch = 1 # If > 0 use the data iterator with the specified number of batches and duplicate_K epochs
-n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 will reduce training speed, but reduce memory load)
+n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 will reduce training speed, but reduce memory load; simplest choice is 1 and it has the least memory demand)
 label_y = None # provide the outcome variable if it is categorical for improved performance by training separate models per class; cannot contain missing values
 bin_indexes = [] # vector that indicates which column is binary
 cat_indexes = [] # vector that indicates which column is categorical (>=3 categories)
@@ -203,14 +203,14 @@ You can set n_jobs (the number of CPU cores used to parallelize the training of 
 We provide below some hyperparameters that can be changed to reduce the memory load:
 ```
 n_batch # best way to reduce memory (from v1.0.5) along with reducing n_jobs; increase it to reduce the memory demand
-n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 reduces the memory demand, but it will reduce training speed)
+n_jobs = -1 # number of cpus/processes used for the parallel loop (-1 means all cpus; using a small number like n_jobs=4 reduces the memory demand, but it will reduce training speed; simplest choice is 1 and it has the least memory demand
 duplicate_K = 100 # lowering this value will reduce memory demand when n_batch=0
 ```
 
 
 ## How to reduce the training time
 
-For maximum training speed, use all CPUs (n_jobs = -1) and the data iterator with 1 iteration per epoch (n_batch = 1). Furthermore, from the ablation, we found that vp-diffusion requires many noise levels to work well, but flow-matching works well even with as little as 10 noise levels; thus, you can reduce training time by using flow (diffusion_type = 'flow') with a small number of noise levels (n_t=10-20). Finally, duplicate_K corresponds to the number of epochs when (n_batch > 0) or the number of duplicated rows when (n_batch = 0); for small datasets, a large value is preferred, but for large datasets (N > 10K) with flow, a smaller value may be enough for good performance (duplicate_K=10) while reducing the training time.
+For maximum training speed, use all CPUs (n_jobs = -1; although it is not ncessarely faster, see https://github.com/SamsungSAILMontreal/ForestDiffusion/issues/12) and the data iterator with 1 iteration per epoch (n_batch = 1). Furthermore, from the ablation, we found that vp-diffusion requires many noise levels to work well, but flow-matching works well even with as little as 10 noise levels; thus, you can reduce training time by using flow (diffusion_type = 'flow') with a small number of noise levels (n_t=10-20). Finally, duplicate_K corresponds to the number of epochs when (n_batch > 0) or the number of duplicated rows when (n_batch = 0); for small datasets, a large value is preferred, but for large datasets (N > 10K) with flow, a smaller value may be enough for good performance (duplicate_K=10) while reducing the training time.
 
 
 ## Feature Importance
