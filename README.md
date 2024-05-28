@@ -113,12 +113,12 @@ X, y = my_data['data'], my_data['target']
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
 
 # Classification problem (outcome is categorical)
-forest_model = ForestDiffusionModel(X, label_y=y, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[], int_indexes=[], diffusion_type='flow', n_jobs=-1)
+forest_model = ForestDiffusionModel(X, label_y=y, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[], int_indexes=[], diffusion_type='flow', n_jobs=1)
 Xy_fake = forest_model.generate(batch_size=X.shape[0]) # last variable will be the label_y
 
 # Regression problem (outcome is continuous)
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
-forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[], diffusion_type='flow', n_jobs=-1)
+forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[], diffusion_type='flow', n_jobs=1)
 Xy_fake = forest_model.generate(batch_size=X.shape[0])
 ```
 
@@ -127,7 +127,7 @@ Examples to impute your dataset:
 ```
 nimp = 5 # number of imputations needed
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
-forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[0], diffusion_type='vp', n_jobs=-1)
+forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[0], diffusion_type='vp', n_jobs=1)
 Xy_fake = forest_model.impute(k=nimp) # regular (fast)
 Xy_fake = forest_model.impute(repaint=True, r=10, j=5, k=nimp) # REPAINT (slow, but better)
 ```
@@ -135,7 +135,7 @@ Xy_fake = forest_model.impute(repaint=True, r=10, j=5, k=nimp) # REPAINT (slow, 
 You can pass any XGBoost parameters that you want to be modified from the default values:
 
 ```
-forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[0], diffusion_type='vp', n_jobs=-1, 
+forest_model = ForestDiffusionModel(Xy, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[4], int_indexes=[0], diffusion_type='vp', n_jobs=1, 
 max_bin=128, subsample=0.1, gamma=3, min_child_weight=2)
 ```
 
@@ -183,7 +183,7 @@ X, y = my_data['data'], my_data['target']
 Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
 
 # Classification problem (outcome is categorical)
-forest_model = ForestDiffusionModel(X, label_y=y, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[], int_indexes=[], diffusion_type='flow', n_jobs=-1)
+forest_model = ForestDiffusionModel(X, label_y=y, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[], int_indexes=[], diffusion_type='flow', n_jobs=1)
 Xy_fake = forest_model.generate(batch_size=X.shape[0]) # last variable will be the label_y
 
 y_pred = forest_model.predict(X, n_t=10, n_z=10) # return the predicted classes of the data provided (larger n_t and n_z increases precision)
@@ -198,7 +198,7 @@ Starting from version v1.0.5 of the Python library, the best way to reduce memor
 
 Our method trains p\*n_t models in parallel using CPUs, where p is the number of variables and n_t is the number of noise levels. Furthermore, when n_batch=0, we make the dataset much bigger by duplicating the rows many times (100 times is the default). You may encounter out-of-memory problems in case of large datasets when n_batch=0 or if you have too many CPUs and use n_jobs=-1. 
 
-You can set n_jobs (the number of CPU cores used to parallelize the training of the models) to a reasonable value to prevent out-of-memory errors. Let's say you have 16 CPU cores. Then n_jobs=16 (or n_jobs=-1, i.e., using all cores) means training 16 models at a time using one core per model. It might be better to use a smaller value like n_jobs=8 to train 8 models at a time using 2 cores per model. The higher n_jobs is (or when n_jobs=1), the more memory-demanding it will be, which increases the risks of having out-of-memory errors.
+You can set n_jobs (the number of CPU cores used to parallelize the training of the models) to a reasonable value to prevent out-of-memory errors. Let's say you have 16 CPU cores. Then n_jobs=16 (or n_jobs=-1, i.e., using all cores) means training 16 models at a time using one core per model. It might be better to use a smaller value like n_jobs=8 to train 8 models at a time using 2 cores per model. The higher n_jobs is (or when n_jobs=1), the more memory-demanding it will be, which increases the risks of having out-of-memory errors. Update: Some users have found no benefit of using n_jobs != -1, so using n_jobs=1 might be simpler considering that XGBoost already parallelize over the cpus when training on model (see https://github.com/SamsungSAILMontreal/ForestDiffusion/issues/12).
 
 We provide below some hyperparameters that can be changed to reduce the memory load:
 ```
