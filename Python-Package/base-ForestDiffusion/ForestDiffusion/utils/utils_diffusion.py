@@ -3,7 +3,7 @@ from ForestDiffusion.utils.diffusion import VPSDE
 import xgboost as xgb
 
 # Build the dataset of x(t) at multiple values of t 
-def build_data_xt(x0, x1, n_t=101, diffusion_type='flow', eps=1e-3, sde=None):
+def build_data_xt(x0, x1, x_covs=None, n_t=101, diffusion_type='flow', eps=1e-3, sde=None):
   b, c = x1.shape
 
   # Expand x0, x1
@@ -29,6 +29,11 @@ def build_data_xt(x0, x1, n_t=101, diffusion_type='flow', eps=1e-3, sde=None):
     y = x0.reshape(b, c)
   else:
     y = x1.reshape(b, c) - x0.reshape(b, c) # [b, c]
+
+  if x_covs is not None: # additional covariates
+    c_new = x_covs.shape[1]
+    X_covs = np.tile(np.expand_dims(x_covs, axis=0), (n_t, 1, 1)).reshape(-1,c_new)
+    X = np.concatenate((X,X_covs), axis=1)
 
   return X, y
 
@@ -81,8 +86,9 @@ class IterForDMatrix(xgb.core.DataIter):
 
   """
 
-  def __init__(self, data, t, dim, n_batch=1000, n_epochs=10, diffusion_type='flow', eps=1e-3, sde=None):
+  def __init__(self, data, data_covs, t, dim, n_batch=1000, n_epochs=10, diffusion_type='flow', eps=1e-3, sde=None):
     self._data = data
+    self._data_covs = data_covs
     self.n_batch = n_batch
     self.n_epochs = n_epochs
     self.t = t
@@ -102,6 +108,8 @@ class IterForDMatrix(xgb.core.DataIter):
     if self.it == self.n_batch*self.n_epochs: # stops after k epochs
       return 0
     x_t, y = get_xt(x1=self._data[self.it % self.n_batch], dim=self.dim, t=self.t, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)
+    if self._data_covs is not None:
+      x_t = np.concatenate((x_t, self._data_covs[self.it % self.n_batch]), axis=1)
     if len(y.shape) == 1:
       y_no_miss = ~np.isnan(y)
       input_data(data=x_t[y_no_miss, :], label=y[y_no_miss])

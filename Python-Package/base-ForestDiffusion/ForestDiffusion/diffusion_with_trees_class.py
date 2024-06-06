@@ -20,6 +20,7 @@ from scipy.special import softmax
 class ForestDiffusionModel():
   def __init__(self, 
                X, # Numpy dataset 
+               X_covs=None, # Numpy dataset of additional covariates/features in order to sample X | X_covs (Optional); note that these variables will not be transformed, please apply your own z-scoring or min-max scaling if desired.
                label_y=None, # must be a categorical/binary variable; if provided will learn multiple models for each label y
                n_t=50, # number of noise level
                model='xgboost', # xgboost, random_forest, lgbm, catboost
@@ -47,6 +48,8 @@ class ForestDiffusionModel():
     assert isinstance(X, np.ndarray), "Input dataset must be a Numpy array"
     assert len(X.shape)==2, "Input dataset must have two dimensions [n,p]"
     assert diffusion_type == 'vp' or diffusion_type == 'flow'
+    if X_covs is not None:
+      assert X_covs.shape[0] == X.shape[0]
     np.random.seed(seed)
 
     # Sanity check, must remove observations with only missing data
@@ -84,8 +87,13 @@ class ForestDiffusionModel():
     X = self.scaler.fit_transform(X)
 
     X1 = X
+    self.X_covs = X_covs
     self.X1 = copy.deepcopy(X1)
     self.b, self.c = X1.shape
+    if X_covs is not None:
+      self.c_all = X1.shape[1] + X_covs.shape[1]
+    else:
+      self.c_all = X1.shape[1]
     self.n_t = n_t
     self.duplicate_K = duplicate_K
     self.model = model
@@ -119,11 +127,13 @@ class ForestDiffusionModel():
     if self.n_batch == 0: 
       if duplicate_K > 1: # we duplicate the data multiple times, so that X0 is k times bigger so we have more room to learn
         X1 = np.tile(X1, (duplicate_K, 1))
+        if X_covs is not None:
+          X_covs = np.tile(X_covs, (duplicate_K, 1))
 
       X0 = np.random.normal(size=X1.shape) # Noise data
 
       # Make Datasets of interpolation
-      X_train, y_train = build_data_xt(X0, X1, n_t=self.n_t, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)
+      X_train, y_train = build_data_xt(X0, X1, X_covs, n_t=self.n_t, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)
 
     if self.label_y is not None:
       assert np.sum(np.isnan(self.label_y)) == 0 # cannot have missing values in the label (just make a special categorical for nan if you need)
@@ -145,8 +155,13 @@ class ForestDiffusionModel():
       rows_per_batch = self.b // self.n_batch
       batches = [rows_per_batch for i in range(self.n_batch-1)] + [self.b - rows_per_batch*(self.n_batch-1)]
       X1_splitted = {}
+      X_covs_splitted = {}
       for i in self.y_uniques:
         X1_splitted[i] = np.split(X1[self.mask_y[i], :], batches, axis=0)
+        if X_covs is not None:
+          X_covs_splitted[i] = np.split(X_covs[self.mask_y[i], :], batches, axis=0)
+        else:
+          X_covs_splitted[i] = None
 
     # Fit model(s)
     n_steps = n_t
@@ -159,19 +174,19 @@ class ForestDiffusionModel():
         for i in range(n_steps):
           for j in range(len(self.y_uniques)):
               if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
-                self.regr[j][i] = self.train_iterator(X1_splitted[j], t=t_levels[i], dim=None, i=i, j=j, k=self.c)
+                self.regr[j][i] = self.train_iterator(X1_splitted[j], X_covs_splitted[j], t=t_levels[i], dim=None)
               else:
                 self.regr[j][i] = self.train_parallel(
-                X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
+                X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c_all)[i][self.mask_y[j], :], 
                 y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], :]
                 )
       else:
         if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
-          self.regr = Parallel(n_jobs=self.n_jobs)(delayed(self.train_iterator)(X1_splitted[j], t=t_levels[i], dim=None, i=i, j=j, k=self.c) for i in range(n_steps) for j in self.y_uniques)
+          self.regr = Parallel(n_jobs=self.n_jobs)(delayed(self.train_iterator)(X1_splitted[j], X_covs_splitted[j], t=t_levels[i], dim=None) for i in range(n_steps) for j in self.y_uniques)
         else:
           self.regr = Parallel(n_jobs=self.n_jobs)( # using all cpus
                   delayed(self.train_parallel)(
-                    X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
+                    X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c_all)[i][self.mask_y[j], :], 
                     y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], :]
                     ) for i in range(n_steps) for j in self.y_uniques
                   )
@@ -190,19 +205,19 @@ class ForestDiffusionModel():
           for j in range(len(self.y_uniques)): 
             for k in range(self.c): 
               if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
-                self.regr[j][i][k] = self.train_iterator(X1_splitted[j], t=t_levels[i], dim=k, i=i, j=j, k=k)
+                self.regr[j][i][k] = self.train_iterator(X1_splitted[j], X_covs_splitted[j], t=t_levels[i], dim=k)
               else:
                 self.regr[j][i][k] = self.train_parallel(
-                X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
+                X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c_all)[i][self.mask_y[j], :], 
                 y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], k]
                 )
       else:
         if self.n_batch > 0: # Data iterator, no need to duplicate, not make xt yet
-          self.regr = Parallel(n_jobs=self.n_jobs)(delayed(self.train_iterator)(X1_splitted[j], t=t_levels[i], dim=k, i=i, j=j, k=k) for i in range(n_steps) for j in self.y_uniques for k in range(self.c))
+          self.regr = Parallel(n_jobs=self.n_jobs)(delayed(self.train_iterator)(X1_splitted[j], X_covs_splitted[j], t=t_levels[i], dim=k) for i in range(n_steps) for j in self.y_uniques for k in range(self.c))
         else:
           self.regr = Parallel(n_jobs=self.n_jobs)( # using all cpus
                   delayed(self.train_parallel)(
-                    X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c)[i][self.mask_y[j], :], 
+                    X_train.reshape(self.n_t, self.b*self.duplicate_K, self.c_all)[i][self.mask_y[j], :], 
                     y_train.reshape(self.b*self.duplicate_K, self.c)[self.mask_y[j], k]
                     ) for i in range(n_steps) for j in self.y_uniques for k in range(self.c)
                   )
@@ -216,10 +231,10 @@ class ForestDiffusionModel():
               current_i += 1
         self.regr = self.regr_
 
-  def train_iterator(self, X1_splitted, t, dim, i=0, j=0, k=0):
+  def train_iterator(self, X1_splitted, X_covs_splitted, t, dim):
     np.random.seed(self.seed)
 
-    it = IterForDMatrix(X1_splitted, t=t, dim=dim, n_batch=self.n_batch, n_epochs=self.duplicate_K, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)
+    it = IterForDMatrix(X1_splitted, X_covs_splitted, t=t, dim=dim, n_batch=self.n_batch, n_epochs=self.duplicate_K, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)
     data_iterator = xgb.QuantileDMatrix(it)
 
     xgb_dict = {'objective': 'reg:squarederror', 'eta': self.eta, 'max_depth': self.max_depth,
@@ -302,7 +317,9 @@ class ForestDiffusionModel():
     X = big*self.X_max + (1-big)*X
     return X
 
-  def predict_over_c(self, X, i, j, k, dmat, expand=False):
+  def predict_over_c(self, X, i, j, k, dmat, expand=False, X_covs=None):
+    if X_covs is not None:
+      X = np.concatenate((X, X_covs), axis=1)
     if dmat:
       X_used = xgb.DMatrix(data=X)
     else:
@@ -315,7 +332,7 @@ class ForestDiffusionModel():
       return self.regr[j][i][k].predict(X_used)
 
   # Return the score-fn or ode-flow output
-  def my_model(self, t, y, mask_y=None, dmat=False, unflatten=True):
+  def my_model(self, t, y, mask_y=None, dmat=False, unflatten=True, X_covs=None):
     if unflatten:
       # y is [b*c]
       c = self.c
@@ -328,12 +345,16 @@ class ForestDiffusionModel():
     out = np.zeros(X.shape) # [b, c]
     i = int(round(t*(self.n_t-1)))
     for j, label in enumerate(self.y_uniques):
+      if X_covs is not None:
+        X_covs_masked = X_covs[mask_y[label], :]
+      else:
+        X_covs_masked = None
       if mask_y[label].sum() > 0:
         if self.p_in_one:
-          out[mask_y[label], :] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=None, dmat=dmat)
+          out[mask_y[label], :] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=None, dmat=dmat, X_covs=X_covs_masked)
         else:
           for k in range(self.c):
-            out[mask_y[label], k] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=k, dmat=dmat)
+            out[mask_y[label], k] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=k, dmat=dmat, X_covs=X_covs_masked)
 
     if self.diffusion_type == 'vp':
       alpha_, sigma_ = self.sde.marginal_prob_coef(X, t)
@@ -344,7 +365,10 @@ class ForestDiffusionModel():
 
   # For imputation, we only give out and receive the missing values while ensuring consistency for the non-missing values
   # y0 is prior data, X_miss is real data
-  def my_model_imputation(self, t, y, X_miss, sde=None, mask_y=None, dmat=False):
+  def my_model_imputation(self, t, y, X_miss, sde=None, mask_y=None, dmat=False, X_covs=None):
+
+    if X_covs is not None:
+      assert X_covs.shape[0] == X_miss.shape[0]
 
     y0 = np.random.normal(size=X_miss.shape) # Noise data
     b, c = y0.shape
@@ -362,12 +386,16 @@ class ForestDiffusionModel():
     out = np.zeros(X.shape) # [b, c]
     i = int(round(t*(self.n_t-1)))
     for j, label in enumerate(self.y_uniques):
+      if X_covs is not None:
+        X_covs_masked = X_covs[mask_y[label], :]
+      else:
+        X_covs_masked = None
       if mask_y[label].sum() > 0:
         if self.p_in_one:
-          out[mask_y[label], :] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=None, dmat=dmat)
+          out[mask_y[label], :] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=None, dmat=dmat, X_covs=X_covs_masked)
         else:
           for k in range(self.c):
-            out[mask_y[label], k] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=k, dmat=dmat)
+            out[mask_y[label], k] = self.predict_over_c(X=X[mask_y[label], :], i=i, j=j, k=k, dmat=dmat, X_covs=X_covs_masked)
 
     if self.diffusion_type == 'vp':
       alpha_, sigma_ = self.sde.marginal_prob_coef(X, t)
@@ -378,7 +406,10 @@ class ForestDiffusionModel():
     return out
 
   # Generate new data by solving the reverse ODE/SDE
-  def generate(self, batch_size=None, n_t=None):
+  def generate(self, batch_size=None, n_t=None, X_covs=None):
+
+    if X_covs is not None:
+      assert X_covs.shape[0] == batch_size
 
     # Generate prior noise
     y0 = np.random.normal(size=(self.b if batch_size is None else batch_size, self.c))
@@ -389,7 +420,7 @@ class ForestDiffusionModel():
     for i in range(len(self.y_uniques)):
       mask_y[self.y_uniques[i]] = np.zeros(y0.shape[0], dtype=bool)
       mask_y[self.y_uniques[i]][label_y == self.y_uniques[i]] = True
-    my_model = partial(self.my_model, mask_y=mask_y, dmat=self.n_batch > 0)
+    my_model = partial(self.my_model, mask_y=mask_y, dmat=self.n_batch > 0, X_covs=X_covs)
 
     if self.diffusion_type == 'vp':
       sde = VPSDE(beta_min=self.beta_min, beta_max=self.beta_max, N=self.n_t if n_t is None else n_t)
@@ -408,15 +439,18 @@ class ForestDiffusionModel():
     return solution
 
   # Impute missing data by solving the reverse ODE while keeping the non-missing data intact
-  def impute(self, k=1, X=None, label_y=None, repaint=False, r=5, j=0.1, n_t=None): # X is data with missing values
+  def impute(self, k=1, X=None, label_y=None, repaint=False, r=5, j=0.1, n_t=None, X_covs=None): # X is data with missing values
     assert self.diffusion_type != 'flow' # cannot use with flow=matching
-  
+
     if X is None:
       X = self.X1
     if label_y is None:
       label_y = self.label_y
     if n_t is None:
       n_t = self.n_t
+
+    if X_covs is not None:
+      assert X_covs.shape[0] == X.shape[0]
 
     if self.diffusion_type == 'vp':
       sde = VPSDE(beta_min=self.beta_min, beta_max=self.beta_max, N=n_t)
@@ -430,7 +464,7 @@ class ForestDiffusionModel():
         mask_y[self.y_uniques[i]] = np.zeros(X.shape[0], dtype=bool)
         mask_y[self.y_uniques[i]][label_y == self.y_uniques[i]] = True
 
-    my_model_imputation = partial(self.my_model_imputation, X_miss=X, sde=sde, mask_y=mask_y, dmat=self.n_batch > 0)
+    my_model_imputation = partial(self.my_model_imputation, X_miss=X, sde=sde, mask_y=mask_y, dmat=self.n_batch > 0, X_covs=X_covs)
 
     for i in range(k):
       y0 = np.random.normal(size=X.shape)
@@ -454,8 +488,10 @@ class ForestDiffusionModel():
     return imputed_data[0] if k==1 else imputed_data
 
   # Zero-shot classification of one batch
-  def zero_shot_classification(self, x, n_t=10, n_z=10):
+  def zero_shot_classification(self, x, n_t=10, n_z=10, X_covs=None):
     assert self.label_y is not None # must have label conditioning to work
+    if X_covs is not None:
+      assert X_covs.shape[0] == x.shape[0]
 
     h = 1 / n_t
     num_classes = len(self.y_uniques)
@@ -478,7 +514,7 @@ class ForestDiffusionModel():
           np.random.seed(10000*k + j)
           y0 = np.random.normal(size=x.shape)
           xt = get_xt(x1=x, t=t, x0=y0, dim=None, diffusion_type=self.diffusion_type, eps=self.eps, sde=self.sde)[0]
-          pred_ = self.my_model(t=t, y=xt, mask_y=mask_y, unflatten=False, dmat=self.n_batch > 0)
+          pred_ = self.my_model(t=t, y=xt, mask_y=mask_y, unflatten=False, dmat=self.n_batch > 0, X_covs=X_covs)
           if self.diffusion_type == 'flow':
             x0 = x - pred_ # x0 = x1 - (x1 - x0)
           elif self.diffusion_type == 'vp':
@@ -497,7 +533,7 @@ class ForestDiffusionModel():
 
   # Zero-shot classification using https://diffusion-classifier.github.io/static/docs/DiffusionClassifier.pdf
   # Return the absolute and relative accuracies
-  def predict(self, X, n_t=None, n_z=None):
+  def predict(self, X, n_t=None, n_z=None, X_covs=None):
     if n_t is None:
       n_t = self.n_t
     if n_z is None:
@@ -508,11 +544,11 @@ class ForestDiffusionModel():
       X, _, _ = self.dummify(X) # dummy-coding for categorical variables
     X = self.scaler.transform(X)
 
-    most_likely_class_avg, prob_avg = self.zero_shot_classification(X, n_t=n_t, n_z=n_z)
+    most_likely_class_avg, prob_avg = self.zero_shot_classification(X, n_t=n_t, n_z=n_z, X_covs=X_covs)
 
     return most_likely_class_avg
 
-  def predict_proba(self, X, n_t=None, n_z=None):
+  def predict_proba(self, X, n_t=None, n_z=None, X_covs=None):
     if n_t is None:
       n_t = self.n_t
     if n_z is None:
@@ -523,6 +559,6 @@ class ForestDiffusionModel():
       X, _, _ = self.dummify(X) # dummy-coding for categorical variables
     X = self.scaler.transform(X)
 
-    most_likely_class_avg, prob_avg = self.zero_shot_classification(X, n_t=n_t, n_z=n_z)
+    most_likely_class_avg, prob_avg = self.zero_shot_classification(X, n_t=n_t, n_z=n_z, X_covs=X_covs)
 
     return prob_avg

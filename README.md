@@ -17,6 +17,10 @@ This repo contains the official implementation of the AISTATS 2024 paper [Genera
   <img src="https://raw.githubusercontent.com/SamsungSAILMontreal/ForestDiffusion/master/fi_shap.png" alt="Feature Importance"/>
 </p>
 
+**2024-06-06 update**: 
+
+There is now an option to condition on additional features/covariates X_covs. These features are not modified in a way. Thus, if you need to transform them (e.g., z-score, min-max scaling, etc.), please do so in advance. This new option allows you to sample from X conditional on X_covs. This gives you more flexibility. See the conditioning section below for more details on how to use it.
+
 **2023-12-15 update**: 
 
 1. There is a new option to use an XGBoost data iterator (now used by default); this allows memory-efficient scaling to massive-scale datasets without requiring data duplication! With this new feature, we were able to train a ForestFlow on the massive Higgs boson dataset (21 features, 11M data points) in around 1.5 hours. See the memory section below for more details on how to use it. 
@@ -188,6 +192,29 @@ Xy_fake = forest_model.generate(batch_size=X.shape[0]) # last variable will be t
 
 y_pred = forest_model.predict(X, n_t=10, n_z=10) # return the predicted classes of the data provided (larger n_t and n_z increases precision)
 y_probs = forest_model.predict_proba(X, n_t=10, n_z=10) # return the predicted class probabilities of the data provided (larger n_t and n_z increases precision)
+
+```
+
+## Sample from X conditional on X_covs (conditional generation) (in v1.0.6)
+
+You can now Sample from X conditional on X_covs. We provide below an example:
+```
+from ForestDiffusion import ForestDiffusionModel
+
+# Iris: numpy dataset with 4 variables (all numerical) and 1 outcome (categorical)
+from sklearn.datasets import load_iris
+import numpy as np
+my_data = load_iris()
+X, y = my_data['data'], my_data['target']
+Xy = np.concatenate((X, np.expand_dims(y, axis=1)), axis=1)
+X_covs = np.random.rand(X.shape[0], 3) # 3 extra conditioning variables
+
+# Classification problem (outcome is categorical)
+forest_model = ForestDiffusionModel(X, X_covs=X_covs, label_y=y, n_t=50, duplicate_K=100, bin_indexes=[], cat_indexes=[], int_indexes=[], diffusion_type='vp', n_jobs=-1)
+Xy_fake = forest_model.generate(batch_size=X.shape[0], X_covs=X_covs) # last variable will be the label_y
+Xy_fake = forest_model.impute(k=5, X_covs=X_covs) # regular (fast)
+y_pred = forest_model.predict(X, n_t=10, n_z=10, X_covs=X_covs) # return the predicted classes of the data provided (larger n_t and n_z increases precision)
+y_probs = forest_model.predict_proba(X, n_t=10, n_z=10, X_covs=X_covs) # return the predicted class probabilities of the data provided (larger n_t and n_z increases precision)
 
 ```
 
