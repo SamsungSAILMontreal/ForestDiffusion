@@ -29,7 +29,7 @@ from TabDDPM.scripts.pipeline import main_fn as tab_ddpm_fn
 from TabDDPM.lib.dataset_prep import my_data_prep
 import miceforest as mf
 from missforest import MissForest
-
+from Feature_Forest_Flow import feature_forest_flow ### Newly Put##
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -426,6 +426,55 @@ if __name__ == "__main__":
                             n_batch=args.n_batch,
                             eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
                             seed=n)
+                    Xy_fake = forest_model.generate(batch_size=args.ngen*Xy_train_used.shape[0], n_t=args.n_t_sampling)
+                    Xy_fake = Xy_fake.reshape(args.ngen, Xy_train_used.shape[0], Xy_train_used.shape[1]) # [ngen, n, p]
+
+                #Newly Put   
+                elif method== "feature_forest_flow":
+                    if args.ycond and (bin_y or cat_y):
+                        forest_model = feature_forest_flow(X=Xy_train_used[:,:-1], 
+                                label_y=Xy_train_used[:,-1],
+                                n_t=args.n_t,
+                                model=args.forest_model, # in random_forest, xgboost, lgbm
+                                solver_type='Euler', #Turn to Rg4 if you want to use Runge Kutta 4th order
+                                model_type="HS3F", 
+                                one_hot_encoding=False,
+                                diffusion_type=args.diffusion_type, # vp, flow
+                                max_depth = args.max_depth, n_estimators = args.n_estimators, # random_forest and xgboost hyperparameters
+                                eta=args.eta, # xgboost hyperparameters
+                                num_leaves=args.num_leaves, # lgbm hyperparameters
+                                gpu_hist=args.gpu_hist,
+                                duplicate_K=args.duplicate_K,
+                                cat_indexes=cat_indexes_no_y,
+                                bin_indexes=bin_indexes_no_y,
+                                int_indexes=int_indexes_no_y,
+                                n_jobs=args.n_jobs,
+                                n_batch=args.n_batch,
+                                eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,batch_size=args.ngen*Xy_train_used.shape[0],
+                                seed=n,
+                                prediction_type="proba_based")
+                    else:
+                        forest_model = feature_forest_flow(X=Xy_train_used, 
+                                n_t=args.n_t,
+                                model=args.forest_model, # in random_forest, xgboost, lgbm
+                                solver_type='Euler', #Turn to Rg4 if you want to use Runge Kutta 4th order
+                                model_type="HS3F",
+                                one_hot_encoding=False,
+                                diffusion_type=args.diffusion_type, # vp, flow
+                                max_depth = args.max_depth, n_estimators = args.n_estimators, # random_forest and xgboost hyperparameters
+                                eta=args.eta, # xgboost hyperparameters
+                                num_leaves=args.num_leaves, # lgbm hyperparameters
+                                gpu_hist=args.gpu_hist,
+                                duplicate_K=args.duplicate_K,
+                                cat_indexes=cat_indexes,
+                                bin_indexes=bin_indexes,
+                                int_indexes=int_indexes,
+                                n_jobs=args.n_jobs,
+                                n_batch=args.n_batch,
+                                eps=args.eps, beta_min=args.beta_min, beta_max=args.beta_max,
+                                batch_size=args.ngen*Xy_train_used.shape[0],
+                                seed=n,
+                                prediction_type="proba_based")
                     Xy_fake = forest_model.generate(batch_size=args.ngen*Xy_train_used.shape[0], n_t=args.n_t_sampling)
                     Xy_fake = Xy_fake.reshape(args.ngen, Xy_train_used.shape[0], Xy_train_used.shape[1]) # [ngen, n, p]
                 end = time.time()
